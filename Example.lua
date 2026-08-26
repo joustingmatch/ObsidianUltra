@@ -176,8 +176,8 @@ end
 -- Arguments: Index, Options
 -- A player card: an avatar thumbnail with a title and description lines (both rich text).
 -- On a TAB it is a full-width banner across the top, above both columns.
--- On a GROUPBOX it is the compact form: a header row with the avatar underneath,
--- which the header collapses away.
+-- On a GROUPBOX it is the compact form: just the avatar box, so the groupbox
+-- around it carries the title, the icon and the collapse.
 Tabs.Main:AddPlayerInfo("PlayerCard", {
 	-- Defaults to the local player; pass Player = <Player> or UserId = 1 for someone else
 	Title = "Good Evening, <b>@" .. game.Players.LocalPlayer.Name .. "</b>, Welcome To The Hub",
@@ -198,19 +198,9 @@ Tabs.Main:AddPlayerInfo("PlayerCard", {
 	Height = 84,
 })
 
-local PlayerBox = Tabs.Main:AddRightGroupbox("Player", "user")
+local PlayerBox = Tabs.Main:AddRightGroupbox("Profile", "user")
 
 PlayerBox:AddPlayerInfo("PlayerCardCompact", {
-	-- Header text; leave it out to use the player's display name
-	Title = "User",
-	HeaderIcon = "user",
-
-	-- Description belongs to the full card; the compact card is the avatar alone
-
-	-- Clicking the header hides/shows the avatar
-	Collapsible = true,
-	Collapsed = false,
-
 	-- "Bust" is the default here; "Avatar" is the full body, which some clients
 	-- fail to load, and "HeadShot" is the tight head crop
 	ThumbnailType = "Bust",
@@ -220,7 +210,7 @@ PlayerBox:AddPlayerInfo("PlayerCardCompact", {
 -- Options.PlayerCard:SetUserId(1)
 -- Options.PlayerCard:SetTitle("Hello there")
 -- Options.PlayerCard:SetDescription({ "\u{00B7} One line" })
--- Options.PlayerCardCompact:SetCollapsed(true)
+-- Options.PlayerCardCompact:SetUserId(1)
 
 -- Groupbox:AddToggle
 -- Arguments: Index, Options

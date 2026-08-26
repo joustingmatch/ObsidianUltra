@@ -4,7 +4,7 @@
 [features]
 + New element: player cards - an avatar thumbnail with a title and description lines (both rich text)
 + Tab:AddPlayerInfo(Idx, Info) is the full card: a full-width banner across the top of the tab, above both columns and under the warning box
-+ Groupbox:AddPlayerInfo(Idx, Info) is the compact card: a header row (icon + name + chevron) with the avatar underneath, collapsing when the header is clicked (Collapsible / Collapsed)
++ Groupbox:AddPlayerInfo(Idx, Info) is the compact card: an avatar box with no header of its own, so the groupbox around it carries the title and the collapse
 + Defaults to the local player; Player, UserId, Thumbnail and ThumbnailType ("HeadShot" | "Bust" | "Avatar") override it
 + Methods: SetTitle, SetDescription, SetPlayer, SetUserId, SetThumbnail, SetHeight, SetCollapsed, SetVisible, Destroy
 

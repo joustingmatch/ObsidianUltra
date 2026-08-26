@@ -249,9 +249,6 @@ export type PlayerInfoOptions = {
     Description: (string | { string | { Text: string?, Divider: boolean? } })?,
     Thumbnail: string?,
     ThumbnailType: ("HeadShot" | "Bust" | "Avatar")?,
-    HeaderIcon: string?,
-    Collapsible: boolean?,
-    Collapsed: boolean?,
     Height: number?,
     Visible: boolean?,
 }
@@ -614,9 +611,6 @@ export type PlayerInfo = {
     Description: string | { string | { Text: string?, Divider: boolean? } },
     Thumbnail: string?,
     ThumbnailType: string?,
-    HeaderIcon: string,
-    Collapsible: boolean,
-    Collapsed: boolean,
     Height: number,
     Visible: boolean,
     Type: "PlayerInfo",
@@ -628,7 +622,6 @@ export type PlayerInfo = {
     SetUserId: (self: PlayerInfo, UserId: number) -> (),
     SetThumbnail: (self: PlayerInfo, Thumbnail: string?) -> (),
     SetHeight: (self: PlayerInfo, Height: number) -> (),
-    SetCollapsed: ((self: PlayerInfo, Collapsed: boolean) -> ())?,
     SetVisible: (self: PlayerInfo, Visible: boolean) -> (),
     Destroy: (self: PlayerInfo) -> (),
 }

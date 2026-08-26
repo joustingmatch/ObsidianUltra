@@ -583,9 +583,6 @@ local Templates = {
         Description = "",
         Thumbnail = nil,
         ThumbnailType = nil,
-        HeaderIcon = "user",
-        Collapsible = true,
-        Collapsed = false,
         Height = nil,
         Visible = true,
     },
@@ -4725,7 +4722,8 @@ do
 end
 
 --// Player card: an avatar thumbnail paired with a title and description lines.
---// Description belongs to the full card; the compact card shows the avatar alone.
+--// The full card spans a tab, above its columns; the compact card is an avatar
+--// box for a groupbox, with no title or description of its own.
 --// The full card spans a tab, above its columns; the compact card is a groupbox
 --// element - a header row whose avatar collapses away when the header is clicked.
 local PLAYER_THUMBNAIL_TYPES = {
@@ -4737,8 +4735,6 @@ local PLAYER_THUMBNAIL_TYPES = {
     full = "AvatarThumbnail",
 }
 
-local PLAYER_CARD_HEADER_HEIGHT = 30
-local PLAYER_CARD_HEADER_GAP = 6
 local PLAYER_CARD_LINE_HEIGHT = 15
 local PLAYER_CARD_LINE_PADDING = 2
 local PLAYER_CARD_DIVIDER_HEIGHT = 7
@@ -4825,9 +4821,6 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
         Description = Info.Description,
         Thumbnail = Info.Thumbnail,
         ThumbnailType = Info.ThumbnailType,
-        HeaderIcon = Info.HeaderIcon,
-        Collapsible = Info.Collapsible,
-        Collapsed = Info.Collapsed and Info.Collapsible,
         Height = Info.Height or (IsCompact and 190 or 84),
 
         Visible = Info.Visible,
@@ -4838,15 +4831,7 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
     local ResolvedName = ResolvePlayerName(PlayerInfo.Player, ResolvedUserId)
 
     function PlayerInfo:GetTotalHeight(): number
-        if not IsCompact then
-            return PlayerInfo.Height
-        end
-
-        if PlayerInfo.Collapsed then
-            return PLAYER_CARD_HEADER_HEIGHT
-        end
-
-        return PLAYER_CARD_HEADER_HEIGHT + PLAYER_CARD_HEADER_GAP + PlayerInfo.Height
+        return PlayerInfo.Height
     end
 
     local Holder = New("Frame", {
@@ -4868,7 +4853,7 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
             return PlayerInfo.Title
         end
 
-        return IsCompact and ResolvedName or string.format("Hello, %s", ResolvedName)
+        return string.format("Hello, %s", ResolvedName)
     end
 
     local function GetDescriptionLines(): { string }
@@ -4973,69 +4958,11 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
     end
 
     if IsCompact then
-        --// Header row, doubling as the collapse button
-        local Header = New("TextButton", {
-            BackgroundColor3 = "MainColor",
-            Size = UDim2.new(1, 0, 0, PLAYER_CARD_HEADER_HEIGHT),
-            Text = "",
-            Parent = Holder,
-        })
-        table.insert(Library.Corners, New("UICorner", {
-            CornerRadius = UDim.new(0, Library.CornerRadius / 2),
-            Parent = Header,
-        }))
-        Library:AddOutline(Header)
-
-        local HeaderIcon = Library:GetCustomIcon(PlayerInfo.HeaderIcon)
-        if HeaderIcon then
-            New("ImageLabel", {
-                AnchorPoint = Vector2.new(0, 0.5),
-                BackgroundTransparency = 1,
-                Image = HeaderIcon.Url,
-                ImageColor3 = "FontColor",
-                ImageRectOffset = HeaderIcon.ImageRectOffset,
-                ImageRectSize = HeaderIcon.ImageRectSize,
-                Position = UDim2.new(0, 10, 0.5, 0),
-                Size = UDim2.fromOffset(16, 16),
-                Parent = Header,
-            })
-        end
-
-        TitleLabel = New("TextLabel", {
-            AnchorPoint = Vector2.new(0, 0.5),
-            BackgroundTransparency = 1,
-            Position = UDim2.new(0, HeaderIcon and 34 or 10, 0.5, 0),
-            Size = UDim2.new(1, HeaderIcon and -60 or -36, 0, 16),
-            TextSize = 14,
-            TextTruncate = Enum.TextTruncate.AtEnd,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Parent = Header,
-        })
-
-        local Chevron
-        local ChevronIcon = Library:GetIcon("chevron-down")
-        if ChevronIcon then
-            Chevron = New("ImageLabel", {
-                AnchorPoint = Vector2.new(1, 0.5),
-                BackgroundTransparency = 1,
-                Image = ChevronIcon.Url,
-                ImageColor3 = "FontColor",
-                ImageRectOffset = ChevronIcon.ImageRectOffset,
-                ImageRectSize = ChevronIcon.ImageRectSize,
-                ImageTransparency = 0.4,
-                Position = UDim2.new(1, -10, 0.5, 0),
-                Rotation = PlayerInfo.Collapsed and -90 or 0,
-                Size = UDim2.fromOffset(16, 16),
-                Visible = PlayerInfo.Collapsible,
-                Parent = Header,
-            })
-        end
-
+        --// No header of its own: the groupbox it sits in provides the title and
+        --// the collapse, so the card is just the avatar box
         Body = New("Frame", {
             BackgroundColor3 = "MainColor",
-            Position = UDim2.fromOffset(0, PLAYER_CARD_HEADER_HEIGHT + PLAYER_CARD_HEADER_GAP),
             Size = UDim2.new(1, 0, 0, PlayerInfo.Height),
-            Visible = not PlayerInfo.Collapsed,
             Parent = Holder,
         })
         table.insert(Library.Corners, New("UICorner", {
@@ -5058,29 +4985,6 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
             Size = UDim2.fromScale(1, 1),
             Parent = Body,
         })
-
-        function PlayerInfo:SetCollapsed(Collapsed: boolean)
-            if not PlayerInfo.Collapsible then
-                Collapsed = false
-            end
-
-            PlayerInfo.Collapsed = Collapsed
-            Body.Visible = not Collapsed
-
-            if Chevron then
-                Chevron.Rotation = Collapsed and -90 or 0
-            end
-
-            RefreshHeight()
-        end
-
-        table.insert(PlayerInfo.Connections, Header.MouseButton1Click:Connect(function()
-            if not PlayerInfo.Collapsible then
-                return
-            end
-
-            PlayerInfo:SetCollapsed(not PlayerInfo.Collapsed)
-        end))
     else
         local Box = New("Frame", {
             BackgroundColor3 = "MainColor",
