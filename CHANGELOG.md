@@ -10,6 +10,8 @@
 
 + Compact player cards now render their Description: the lines sit under the avatar and the card grows to fit them, live-updating through SetDescription
 
++ Player card descriptions accept dividers between lines: "---" or { Divider = true } draws a thin rule, in both the full banner and the compact card
+
 [changes]
 + TabSwipeFrom now only applies to normal tabs; sub tab content always swipes in from the bottom
 ```

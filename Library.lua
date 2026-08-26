@@ -4740,6 +4740,25 @@ local PLAYER_CARD_HEADER_HEIGHT = 30
 local PLAYER_CARD_HEADER_GAP = 6
 local PLAYER_CARD_LINE_HEIGHT = 15
 local PLAYER_CARD_LINE_PADDING = 2
+local PLAYER_CARD_DIVIDER_HEIGHT = 7
+
+--// A description entry is a divider when it is a run of dashes ("---") or a
+--// table saying so ({ Divider = true }); anything else is a line of text
+local function IsDescriptionDivider(Entry: any): boolean
+    if typeof(Entry) == "table" then
+        return Entry.Divider == true or Entry.Type == "Divider"
+    end
+
+    return typeof(Entry) == "string" and string.match(Entry, "^%s*%-%-%-+%s*$") ~= nil
+end
+
+local function GetDescriptionText(Entry: any): string
+    if typeof(Entry) == "table" then
+        return tostring(Entry.Text or "")
+    end
+
+    return tostring(Entry)
+end
 
 local function StripRichText(Text: string): string
     return (string.gsub(Text or "", "<[^<>]->", ""))
@@ -4870,7 +4889,7 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
     local AvatarImage
     local TitleLabel
     local DescriptionHolder
-    local DescriptionLabels = {}
+    local DescriptionElements = {}
     local Body
 
     local function UpdateThumbnail()
@@ -4895,14 +4914,12 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
     end
 
     --// Splits the compact body between the avatar and the lines below it
-    local function RefreshCompactLayout(LineCount: number)
+    local function RefreshCompactLayout(ContentHeight: number)
         if not (IsCompact and Body and DescriptionHolder and AvatarImage) then
             return
         end
 
-        DescriptionHeight = LineCount > 0
-            and LineCount * PLAYER_CARD_LINE_HEIGHT + (LineCount - 1) * PLAYER_CARD_LINE_PADDING + 6
-            or 0
+        DescriptionHeight = ContentHeight > 0 and ContentHeight + 6 or 0
 
         DescriptionHolder.Size = UDim2.new(1, 0, 0, DescriptionHeight)
         AvatarImage.Size = UDim2.new(1, 0, 1, -DescriptionHeight)
@@ -4927,19 +4944,41 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
 
         local Lines = GetDescriptionLines()
 
-        for Index = #DescriptionLabels, #Lines + 1, -1 do
-            local Label = table.remove(DescriptionLabels, Index)
-            Label:Destroy()
+        --// Entries can change type between refreshes, so the rows are rebuilt
+        --// rather than pooled
+        for Index = #DescriptionElements, 1, -1 do
+            table.remove(DescriptionElements, Index):Destroy()
         end
 
-        for Index, Line in Lines do
-            local Label = DescriptionLabels[Index]
+        local ContentHeight = 0
 
-            if not Label then
-                Label = New("TextLabel", {
+        for Index, Entry in Lines do
+            if IsDescriptionDivider(Entry) then
+                local DividerHolder = New("Frame", {
+                    BackgroundTransparency = 1,
+                    LayoutOrder = Index,
+                    Size = UDim2.new(1, 0, 0, PLAYER_CARD_DIVIDER_HEIGHT),
+                    Parent = DescriptionHolder,
+                })
+
+                New("Frame", {
+                    AnchorPoint = Vector2.new(0, 0.5),
+                    BackgroundColor3 = "OutlineColor",
+                    Position = UDim2.fromScale(0, 0.5),
+                    Size = UDim2.new(1, 0, 0, 1),
+                    Parent = DividerHolder,
+                })
+
+                table.insert(DescriptionElements, DividerHolder)
+                ContentHeight += PLAYER_CARD_DIVIDER_HEIGHT
+            else
+                local Text = GetDescriptionText(Entry)
+
+                local Label = New("TextLabel", {
                     BackgroundTransparency = 1,
                     LayoutOrder = Index,
                     Size = UDim2.new(1, 0, 0, PLAYER_CARD_LINE_HEIGHT),
+                    Text = Text,
                     TextSize = 13,
                     TextTransparency = 0.25,
                     TextTruncate = Enum.TextTruncate.AtEnd,
@@ -4947,14 +4986,17 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
                     Parent = DescriptionHolder,
                 })
 
-                DescriptionLabels[Index] = Label
+                table.insert(DescriptionElements, Label)
+                ContentHeight += PLAYER_CARD_LINE_HEIGHT
+                PlayerInfo.Text = PlayerInfo.Text .. " " .. StripRichText(Text)
             end
-
-            Label.Text = Line
-            PlayerInfo.Text = PlayerInfo.Text .. " " .. StripRichText(Line)
         end
 
-        RefreshCompactLayout(#Lines)
+        if #Lines > 1 then
+            ContentHeight += (#Lines - 1) * PLAYER_CARD_LINE_PADDING
+        end
+
+        RefreshCompactLayout(ContentHeight)
     end
 
     if IsCompact then

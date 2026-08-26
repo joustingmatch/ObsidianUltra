@@ -185,6 +185,10 @@ Tabs.Main:AddPlayerInfo("PlayerCard", {
 	-- A single string works too
 	Description = {
 		'\u{00B7} Method: <font color="#8f6bff">Beta Tycoon</font>',
+
+		-- "---" (or { Divider = true }) draws a divider between the lines
+		"---",
+
 		'\u{00B7} Support: <font color="#8f6bff">Elemental Tycoon</font>',
 		'\u{00B7} Future: <font color="#8f6bff">All Tycoons Autofarm</font>',
 	},
@@ -204,6 +208,7 @@ PlayerBox:AddPlayerInfo("PlayerCardCompact", {
 	-- Description lines sit under the avatar here, and the card grows to fit them
 	Description = {
 		'\u{00B7} Rank: <font color="#8f6bff">Owner</font>',
+		{ Divider = true },
 		'\u{00B7} Playtime: <font color="#8f6bff">4h 12m</font>',
 	},
 
