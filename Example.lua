@@ -95,14 +95,13 @@ local Tabs = {
 
 	-- Layout = "Single" (or "Center") drops the right column and centers the left
 	-- one, so everything stacks in a single column. Default is "Dual".
-	-- The column fills the tab; ColumnWidth narrows it if you want it tighter
-	-- (a scale when <= 1, pixels above it).
+	-- ColumnWidth sets how wide that column is: a scale when <= 1, pixels above it.
 	["One Column"] = Window:AddTab({
 		Name = "One Column",
 		Icon = "align-center",
 		Description = "Single column layout",
 		Layout = "Single",
-		-- ColumnWidth = 0.6,
+		ColumnWidth = 0.6,
 	}),
 	["UI Settings"] = Window:AddTab({ Name = "UI Settings", Icon = "settings", Description = "Configure the menu" }),
 }
