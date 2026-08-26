@@ -207,7 +207,9 @@ PlayerBox:AddPlayerInfo("PlayerCardCompact", {
 	Collapsible = true,
 	Collapsed = false,
 
-	ThumbnailType = "Avatar", -- Full body, the default for Compact
+	-- "Bust" is the default for Compact; "Avatar" is the full body, which some
+	-- clients fail to load, and "HeadShot" is the tight head crop
+	ThumbnailType = "Bust",
 	Height = 190,
 })
 

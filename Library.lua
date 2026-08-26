@@ -8769,8 +8769,10 @@ do
     end
 
     local function GetPlayerThumbnail(UserId: number, ThumbnailType: string?, Compact: boolean): string
+        --// Compact shows more of the character; full-body thumbnails do not load
+        --// on every client, so the reliable bust is the default there
         local Type = PLAYER_THUMBNAIL_TYPES[string.lower(ThumbnailType or "")]
-            or (Compact and "AvatarThumbnail" or "AvatarHeadShot")
+            or (Compact and "AvatarBust" or "AvatarHeadShot")
         local Size = Type == "AvatarThumbnail" and 420 or 150
 
         return string.format("rbxthumb://type=%s&id=%s&w=%d&h=%d", Type, tostring(UserId), Size, Size)

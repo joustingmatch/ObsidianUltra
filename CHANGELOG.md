@@ -1,3 +1,17 @@
+## 25.08.2026
+
+```diff
+[features]
++ New element: Groupbox:AddPlayerInfo(Idx, Info) - a player card with an avatar thumbnail, a title and description lines (both rich text)
++ Style "Full" places the avatar beside the text; Style "Compact" is a header row (icon + name + chevron) with the avatar underneath
++ Compact cards collapse when the header is clicked (Collapsible / Collapsed)
++ Defaults to the local player; Player, UserId, Thumbnail and ThumbnailType ("HeadShot" | "Bust" | "Avatar") override it
++ Methods: SetTitle, SetDescription, SetPlayer, SetUserId, SetThumbnail, SetHeight, SetCollapsed, SetVisible, Destroy
+
+[changes]
++ TabSwipeFrom now only applies to normal tabs; sub tab content always swipes in from the bottom
+```
+
 ## 09.08.2026
 
 ```diff
