@@ -2,9 +2,9 @@
 
 ```diff
 [features]
-+ New element: Groupbox:AddPlayerInfo(Idx, Info) - a player card with an avatar thumbnail, a title and description lines (both rich text)
-+ Style "Full" places the avatar beside the text; Style "Compact" is a header row (icon + name + chevron) with the avatar underneath
-+ Compact cards collapse when the header is clicked (Collapsible / Collapsed)
++ New element: player cards - an avatar thumbnail with a title and description lines (both rich text)
++ Tab:AddPlayerInfo(Idx, Info) is the full card: a full-width banner across the top of the tab, above both columns and under the warning box
++ Groupbox:AddPlayerInfo(Idx, Info) is the compact card: a header row (icon + name + chevron) with the avatar underneath, collapsing when the header is clicked (Collapsible / Collapsed)
 + Defaults to the local player; Player, UserId, Thumbnail and ThumbnailType ("HeadShot" | "Bust" | "Avatar") override it
 + Methods: SetTitle, SetDescription, SetPlayer, SetUserId, SetThumbnail, SetHeight, SetCollapsed, SetVisible, Destroy
 

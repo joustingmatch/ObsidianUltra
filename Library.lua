@@ -579,7 +579,6 @@ local Templates = {
     PlayerInfo = {
         Player = nil,
         UserId = nil,
-        Style = "Full",
         Title = "",
         Description = "",
         Thumbnail = nil,
@@ -4725,6 +4724,459 @@ do
     end
 end
 
+--// Player card: an avatar thumbnail paired with a title and description lines.
+--// The full card spans a tab, above its columns; the compact card is a groupbox
+--// element - a header row whose avatar collapses away when the header is clicked.
+local PLAYER_THUMBNAIL_TYPES = {
+    headshot = "AvatarHeadShot",
+    head = "AvatarHeadShot",
+    bust = "AvatarBust",
+    avatar = "AvatarThumbnail",
+    body = "AvatarThumbnail",
+    full = "AvatarThumbnail",
+}
+
+local PLAYER_CARD_HEADER_HEIGHT = 30
+local PLAYER_CARD_HEADER_GAP = 6
+
+local function StripRichText(Text: string): string
+    return (string.gsub(Text or "", "<[^<>]->", ""))
+end
+
+local function ResolvePlayerUserId(Player: any, UserId: number?): number
+    if typeof(UserId) == "number" and UserId > 0 then
+        return UserId
+    end
+
+    if typeof(Player) == "Instance" and Player:IsA("Player") then
+        return Player.UserId
+    end
+
+    if typeof(Player) == "string" then
+        local Found = Players:FindFirstChild(Player)
+        if Found and Found:IsA("Player") then
+            return Found.UserId
+        end
+    end
+
+    return LocalPlayer.UserId
+end
+
+local function ResolvePlayerName(Player: any, UserId: number): string
+    if typeof(Player) == "Instance" and Player:IsA("Player") then
+        return Player.DisplayName
+    end
+
+    local Found = Players:GetPlayerByUserId(UserId)
+    if Found then
+        return Found.DisplayName
+    end
+
+    if typeof(Player) == "string" then
+        return Player
+    end
+
+    return tostring(UserId)
+end
+
+local function GetPlayerThumbnail(UserId: number, ThumbnailType: string?, Compact: boolean): string
+    --// Compact shows more of the character; full-body thumbnails do not load on
+    --// every client, so the reliable bust is the default there
+    local Type = PLAYER_THUMBNAIL_TYPES[string.lower(ThumbnailType or "")]
+        or (Compact and "AvatarBust" or "AvatarHeadShot")
+    local Size = Type == "AvatarThumbnail" and 420 or 150
+
+    return string.format("rbxthumb://type=%s&id=%s&w=%d&h=%d", Type, tostring(UserId), Size, Size)
+end
+
+--// Builds the card itself. Inset shifts and narrows the holder (the tab banner
+--// lines up with the warning box); OnResize runs whenever the height changes.
+local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inset: { X: number, Width: number }, OnResize: () -> ())
+    local PlayerInfo = {
+        Connections = {},
+        Destroyed = false,
+
+        Style = IsCompact and "Compact" or "Full",
+        Player = Info.Player,
+        UserId = Info.UserId,
+        Title = Info.Title,
+        Description = Info.Description,
+        Thumbnail = Info.Thumbnail,
+        ThumbnailType = Info.ThumbnailType,
+        HeaderIcon = Info.HeaderIcon,
+        Collapsible = Info.Collapsible,
+        Collapsed = Info.Collapsed and Info.Collapsible,
+        Height = Info.Height or (IsCompact and 190 or 84),
+
+        Visible = Info.Visible,
+        Type = "PlayerInfo",
+    }
+
+    local ResolvedUserId = ResolvePlayerUserId(PlayerInfo.Player, PlayerInfo.UserId)
+    local ResolvedName = ResolvePlayerName(PlayerInfo.Player, ResolvedUserId)
+
+    function PlayerInfo:GetTotalHeight(): number
+        if not IsCompact then
+            return PlayerInfo.Height
+        end
+
+        if PlayerInfo.Collapsed then
+            return PLAYER_CARD_HEADER_HEIGHT
+        end
+
+        return PLAYER_CARD_HEADER_HEIGHT + PLAYER_CARD_HEADER_GAP + PlayerInfo.Height
+    end
+
+    local Holder = New("Frame", {
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(Inset.X, 0),
+        Size = UDim2.new(1, Inset.Width, 0, PlayerInfo:GetTotalHeight()),
+        Visible = PlayerInfo.Visible,
+        Parent = Parent,
+    })
+
+    local function RefreshHeight()
+        Holder.Size = UDim2.new(1, Inset.Width, 0, PlayerInfo:GetTotalHeight())
+        OnResize()
+    end
+
+    --// Fall back to the player's own name so an empty Info still reads well
+    local function GetTitleText(): string
+        if PlayerInfo.Title ~= "" then
+            return PlayerInfo.Title
+        end
+
+        return IsCompact and ResolvedName or string.format("Hello, %s", ResolvedName)
+    end
+
+    local function GetDescriptionLines(): { string }
+        local Description = PlayerInfo.Description
+
+        if typeof(Description) == "table" then
+            return Description
+        elseif typeof(Description) == "string" and Description ~= "" then
+            return { Description }
+        end
+
+        return {}
+    end
+
+    local AvatarImage
+    local TitleLabel
+    local DescriptionHolder
+    local DescriptionLabels = {}
+    local Body
+
+    local function UpdateThumbnail()
+        if not AvatarImage then
+            return
+        end
+
+        if PlayerInfo.Thumbnail and PlayerInfo.Thumbnail ~= "" then
+            local Icon = Library:GetCustomIcon(PlayerInfo.Thumbnail)
+
+            if Icon then
+                AvatarImage.Image = Icon.Url
+                AvatarImage.ImageRectOffset = Icon.ImageRectOffset
+                AvatarImage.ImageRectSize = Icon.ImageRectSize
+                return
+            end
+        end
+
+        AvatarImage.Image = GetPlayerThumbnail(ResolvedUserId, PlayerInfo.ThumbnailType, IsCompact)
+        AvatarImage.ImageRectOffset = Vector2.zero
+        AvatarImage.ImageRectSize = Vector2.zero
+    end
+
+    local function UpdateText()
+        local TitleText = GetTitleText()
+
+        if TitleLabel then
+            TitleLabel.Text = TitleText
+        end
+
+        PlayerInfo.Text = StripRichText(TitleText)
+
+        if not DescriptionHolder then
+            return
+        end
+
+        local Lines = GetDescriptionLines()
+
+        for Index = #DescriptionLabels, #Lines + 1, -1 do
+            local Label = table.remove(DescriptionLabels, Index)
+            Label:Destroy()
+        end
+
+        for Index, Line in Lines do
+            local Label = DescriptionLabels[Index]
+
+            if not Label then
+                Label = New("TextLabel", {
+                    BackgroundTransparency = 1,
+                    LayoutOrder = Index,
+                    Size = UDim2.new(1, 0, 0, 15),
+                    TextSize = 13,
+                    TextTransparency = 0.25,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Parent = DescriptionHolder,
+                })
+
+                DescriptionLabels[Index] = Label
+            end
+
+            Label.Text = Line
+            PlayerInfo.Text = PlayerInfo.Text .. " " .. StripRichText(Line)
+        end
+    end
+
+    if IsCompact then
+        --// Header row, doubling as the collapse button
+        local Header = New("TextButton", {
+            BackgroundColor3 = "MainColor",
+            Size = UDim2.new(1, 0, 0, PLAYER_CARD_HEADER_HEIGHT),
+            Text = "",
+            Parent = Holder,
+        })
+        table.insert(Library.Corners, New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius / 2),
+            Parent = Header,
+        }))
+        Library:AddOutline(Header)
+
+        local HeaderIcon = Library:GetCustomIcon(PlayerInfo.HeaderIcon)
+        if HeaderIcon then
+            New("ImageLabel", {
+                AnchorPoint = Vector2.new(0, 0.5),
+                BackgroundTransparency = 1,
+                Image = HeaderIcon.Url,
+                ImageColor3 = "FontColor",
+                ImageRectOffset = HeaderIcon.ImageRectOffset,
+                ImageRectSize = HeaderIcon.ImageRectSize,
+                Position = UDim2.new(0, 10, 0.5, 0),
+                Size = UDim2.fromOffset(16, 16),
+                Parent = Header,
+            })
+        end
+
+        TitleLabel = New("TextLabel", {
+            AnchorPoint = Vector2.new(0, 0.5),
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, HeaderIcon and 34 or 10, 0.5, 0),
+            Size = UDim2.new(1, HeaderIcon and -60 or -36, 0, 16),
+            TextSize = 14,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = Header,
+        })
+
+        local Chevron
+        local ChevronIcon = Library:GetIcon("chevron-down")
+        if ChevronIcon then
+            Chevron = New("ImageLabel", {
+                AnchorPoint = Vector2.new(1, 0.5),
+                BackgroundTransparency = 1,
+                Image = ChevronIcon.Url,
+                ImageColor3 = "FontColor",
+                ImageRectOffset = ChevronIcon.ImageRectOffset,
+                ImageRectSize = ChevronIcon.ImageRectSize,
+                ImageTransparency = 0.4,
+                Position = UDim2.new(1, -10, 0.5, 0),
+                Rotation = PlayerInfo.Collapsed and -90 or 0,
+                Size = UDim2.fromOffset(16, 16),
+                Visible = PlayerInfo.Collapsible,
+                Parent = Header,
+            })
+        end
+
+        Body = New("Frame", {
+            BackgroundColor3 = "MainColor",
+            Position = UDim2.fromOffset(0, PLAYER_CARD_HEADER_HEIGHT + PLAYER_CARD_HEADER_GAP),
+            Size = UDim2.new(1, 0, 0, PlayerInfo.Height),
+            Visible = not PlayerInfo.Collapsed,
+            Parent = Holder,
+        })
+        table.insert(Library.Corners, New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius / 2),
+            Parent = Body,
+        }))
+        Library:AddOutline(Body)
+
+        New("UIPadding", {
+            PaddingBottom = UDim.new(0, 6),
+            PaddingLeft = UDim.new(0, 6),
+            PaddingRight = UDim.new(0, 6),
+            PaddingTop = UDim.new(0, 6),
+            Parent = Body,
+        })
+
+        AvatarImage = New("ImageLabel", {
+            BackgroundTransparency = 1,
+            ScaleType = Enum.ScaleType.Fit,
+            Size = UDim2.fromScale(1, 1),
+            Parent = Body,
+        })
+
+        function PlayerInfo:SetCollapsed(Collapsed: boolean)
+            if not PlayerInfo.Collapsible then
+                Collapsed = false
+            end
+
+            PlayerInfo.Collapsed = Collapsed
+            Body.Visible = not Collapsed
+
+            if Chevron then
+                Chevron.Rotation = Collapsed and -90 or 0
+            end
+
+            RefreshHeight()
+        end
+
+        table.insert(PlayerInfo.Connections, Header.MouseButton1Click:Connect(function()
+            if not PlayerInfo.Collapsible then
+                return
+            end
+
+            PlayerInfo:SetCollapsed(not PlayerInfo.Collapsed)
+        end))
+    else
+        local Box = New("Frame", {
+            BackgroundColor3 = "MainColor",
+            Size = UDim2.fromScale(1, 1),
+            Parent = Holder,
+        })
+        table.insert(Library.Corners, New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius),
+            Parent = Box,
+        }))
+        Library:AddOutline(Box)
+
+        New("UIPadding", {
+            PaddingBottom = UDim.new(0, 10),
+            PaddingLeft = UDim.new(0, 10),
+            PaddingRight = UDim.new(0, 10),
+            PaddingTop = UDim.new(0, 10),
+            Parent = Box,
+        })
+
+        --// Square avatar tile on the left, sized off the card height
+        local AvatarSize = PlayerInfo.Height - 20
+
+        local AvatarHolder = New("Frame", {
+            BackgroundColor3 = "BackgroundColor",
+            Size = UDim2.new(0, AvatarSize, 1, 0),
+            Parent = Box,
+        })
+        table.insert(Library.Corners, New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius / 2),
+            Parent = AvatarHolder,
+        }))
+        Library:AddOutline(AvatarHolder)
+
+        AvatarImage = New("ImageLabel", {
+            BackgroundTransparency = 1,
+            ScaleType = Enum.ScaleType.Fit,
+            Size = UDim2.fromScale(1, 1),
+            Parent = AvatarHolder,
+        })
+
+        local TextHolder = New("Frame", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(AvatarSize + 12, 0),
+            Size = UDim2.new(1, -(AvatarSize + 12), 1, 0),
+            Parent = Box,
+        })
+
+        TitleLabel = New("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 18),
+            TextSize = 15,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = TextHolder,
+        })
+
+        DescriptionHolder = New("Frame", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(0, 22),
+            Size = UDim2.new(1, 0, 1, -22),
+            Parent = TextHolder,
+        })
+
+        New("UIListLayout", {
+            Padding = UDim.new(0, 2),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Parent = DescriptionHolder,
+        })
+    end
+
+    UpdateThumbnail()
+    UpdateText()
+
+    function PlayerInfo:SetTitle(Title: string)
+        PlayerInfo.Title = Title or ""
+        UpdateText()
+    end
+
+    function PlayerInfo:SetDescription(Description: string | { string })
+        PlayerInfo.Description = Description or ""
+        UpdateText()
+    end
+
+    function PlayerInfo:SetPlayer(Player: Player | string)
+        PlayerInfo.Player = Player
+        PlayerInfo.UserId = nil
+
+        ResolvedUserId = ResolvePlayerUserId(Player, nil)
+        ResolvedName = ResolvePlayerName(Player, ResolvedUserId)
+
+        UpdateThumbnail()
+        UpdateText()
+    end
+
+    function PlayerInfo:SetUserId(UserId: number)
+        PlayerInfo.UserId = UserId
+        PlayerInfo.Player = nil
+
+        ResolvedUserId = ResolvePlayerUserId(nil, UserId)
+        ResolvedName = ResolvePlayerName(nil, ResolvedUserId)
+
+        UpdateThumbnail()
+        UpdateText()
+    end
+
+    function PlayerInfo:SetThumbnail(Thumbnail: string?)
+        PlayerInfo.Thumbnail = Thumbnail
+        UpdateThumbnail()
+    end
+
+    function PlayerInfo:SetHeight(Height: number)
+        assert(Height > 0, "Height must be greater than 0.")
+
+        PlayerInfo.Height = Height
+
+        if Body then
+            Body.Size = UDim2.new(1, 0, 0, Height)
+        end
+
+        RefreshHeight()
+    end
+
+    function PlayerInfo:SetVisible(Visible: boolean)
+        PlayerInfo.Visible = Visible
+
+        Holder.Visible = Visible
+        OnResize()
+    end
+
+    PlayerInfo.Holder = Holder
+    return PlayerInfo
+end
+
+local PLAYER_CARD_NO_INSET = { X = 0, Width = 0 }
+local PLAYER_CARD_BANNER_INSET = { X = 2, Width = -5 }
+
 local BaseGroupbox = {}
 do
     local Funcs = {}
@@ -8716,460 +9168,21 @@ do
         return Image
     end
 
-    --// Player card: an avatar thumbnail paired with a title and description lines.
-    --// "Full" puts the avatar beside the text; "Compact" is a header row with the
-    --// avatar underneath it, and the header collapses the avatar away.
-    local PLAYER_THUMBNAIL_TYPES = {
-        headshot = "AvatarHeadShot",
-        head = "AvatarHeadShot",
-        bust = "AvatarBust",
-        avatar = "AvatarThumbnail",
-        body = "AvatarThumbnail",
-        full = "AvatarThumbnail",
-    }
-
-    local function StripRichText(Text: string): string
-        return (string.gsub(Text or "", "<[^<>]->", ""))
-    end
-
-    local function ResolvePlayerUserId(Player: any, UserId: number?): number
-        if typeof(UserId) == "number" and UserId > 0 then
-            return UserId
-        end
-
-        if typeof(Player) == "Instance" and Player:IsA("Player") then
-            return Player.UserId
-        end
-
-        if typeof(Player) == "string" then
-            local Found = Players:FindFirstChild(Player)
-            if Found and Found:IsA("Player") then
-                return Found.UserId
-            end
-        end
-
-        return LocalPlayer.UserId
-    end
-
-    local function ResolvePlayerName(Player: any, UserId: number): string
-        if typeof(Player) == "Instance" and Player:IsA("Player") then
-            return Player.DisplayName
-        end
-
-        local Found = Players:GetPlayerByUserId(UserId)
-        if Found then
-            return Found.DisplayName
-        end
-
-        if typeof(Player) == "string" then
-            return Player
-        end
-
-        return tostring(UserId)
-    end
-
-    local function GetPlayerThumbnail(UserId: number, ThumbnailType: string?, Compact: boolean): string
-        --// Compact shows more of the character; full-body thumbnails do not load
-        --// on every client, so the reliable bust is the default there
-        local Type = PLAYER_THUMBNAIL_TYPES[string.lower(ThumbnailType or "")]
-            or (Compact and "AvatarBust" or "AvatarHeadShot")
-        local Size = Type == "AvatarThumbnail" and 420 or 150
-
-        return string.format("rbxthumb://type=%s&id=%s&w=%d&h=%d", Type, tostring(UserId), Size, Size)
-    end
-
+    --// Compact player card. The full-width version lives on the tab itself
+    --// (Tab:AddPlayerInfo), since it spans both columns instead of sitting in a column.
     function Funcs:AddPlayerInfo(Idx, Info)
         if self.Destroyed then return nil end
 
         Info = Library:Validate(Info, Templates.PlayerInfo)
 
         local Groupbox = self
-        local Container = Groupbox.Container
-
-        local IsCompact = string.lower(Info.Style or "full") == "compact"
-
-        local PlayerInfo = {
-            Connections = {},
-            Destroyed = false,
-
-            Style = IsCompact and "Compact" or "Full",
-            Player = Info.Player,
-            UserId = Info.UserId,
-            Title = Info.Title,
-            Description = Info.Description,
-            Thumbnail = Info.Thumbnail,
-            ThumbnailType = Info.ThumbnailType,
-            HeaderIcon = Info.HeaderIcon,
-            Collapsible = Info.Collapsible,
-            Collapsed = Info.Collapsed and Info.Collapsible,
-            Height = Info.Height or (IsCompact and 190 or 84),
-
-            Visible = Info.Visible,
-            Type = "PlayerInfo",
-        }
-
-        local ResolvedUserId = ResolvePlayerUserId(PlayerInfo.Player, PlayerInfo.UserId)
-        local ResolvedName = ResolvePlayerName(PlayerInfo.Player, ResolvedUserId)
-
-        local HeaderHeight = 30
-        local HeaderGap = 6
-
-        local function TotalHeight(): number
-            if not IsCompact then
-                return PlayerInfo.Height
-            end
-
-            if PlayerInfo.Collapsed then
-                return HeaderHeight
-            end
-
-            return HeaderHeight + HeaderGap + PlayerInfo.Height
-        end
-
-        local Holder = New("Frame", {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, TotalHeight()),
-            Visible = PlayerInfo.Visible,
-            Parent = Container,
-        })
-
-        --// Fall back to the player's own name so an empty Info still reads well
-        local function GetTitleText(): string
-            if PlayerInfo.Title ~= "" then
-                return PlayerInfo.Title
-            end
-
-            return IsCompact and ResolvedName or string.format("Hello, %s", ResolvedName)
-        end
-
-        local function GetDescriptionLines(): { string }
-            local Description = PlayerInfo.Description
-
-            if typeof(Description) == "table" then
-                return Description
-            elseif typeof(Description) == "string" and Description ~= "" then
-                return { Description }
-            end
-
-            return {}
-        end
-
-        local AvatarImage
-        local TitleLabel
-        local DescriptionHolder
-        local DescriptionLabels = {}
-        local Body
-
-        local function UpdateThumbnail()
-            if not AvatarImage then
-                return
-            end
-
-            if PlayerInfo.Thumbnail and PlayerInfo.Thumbnail ~= "" then
-                local Icon = Library:GetCustomIcon(PlayerInfo.Thumbnail)
-
-                if Icon then
-                    AvatarImage.Image = Icon.Url
-                    AvatarImage.ImageRectOffset = Icon.ImageRectOffset
-                    AvatarImage.ImageRectSize = Icon.ImageRectSize
-                    return
-                end
-            end
-
-            AvatarImage.Image = GetPlayerThumbnail(ResolvedUserId, PlayerInfo.ThumbnailType, IsCompact)
-            AvatarImage.ImageRectOffset = Vector2.zero
-            AvatarImage.ImageRectSize = Vector2.zero
-        end
-
-        local function UpdateText()
-            local TitleText = GetTitleText()
-
-            if TitleLabel then
-                TitleLabel.Text = TitleText
-            end
-
-            PlayerInfo.Text = StripRichText(TitleText)
-
-            if not DescriptionHolder then
-                return
-            end
-
-            local Lines = GetDescriptionLines()
-
-            for Index = #DescriptionLabels, #Lines + 1, -1 do
-                local Label = table.remove(DescriptionLabels, Index)
-                Label:Destroy()
-            end
-
-            for Index, Line in Lines do
-                local Label = DescriptionLabels[Index]
-
-                if not Label then
-                    Label = New("TextLabel", {
-                        BackgroundTransparency = 1,
-                        LayoutOrder = Index,
-                        Size = UDim2.new(1, 0, 0, 15),
-                        TextSize = 13,
-                        TextTransparency = 0.25,
-                        TextTruncate = Enum.TextTruncate.AtEnd,
-                        TextXAlignment = Enum.TextXAlignment.Left,
-                        Parent = DescriptionHolder,
-                    })
-
-                    DescriptionLabels[Index] = Label
-                end
-
-                Label.Text = Line
-                PlayerInfo.Text = PlayerInfo.Text .. " " .. StripRichText(Line)
-            end
-        end
-
-        if IsCompact then
-            --// Header row, doubling as the collapse button
-            local Header = New("TextButton", {
-                BackgroundColor3 = "MainColor",
-                Size = UDim2.new(1, 0, 0, HeaderHeight),
-                Text = "",
-                Parent = Holder,
-            })
-            table.insert(Library.Corners, New("UICorner", {
-                CornerRadius = UDim.new(0, Library.CornerRadius / 2),
-                Parent = Header,
-            }))
-            Library:AddOutline(Header)
-
-            local HeaderIcon = Library:GetCustomIcon(PlayerInfo.HeaderIcon)
-            if HeaderIcon then
-                New("ImageLabel", {
-                    AnchorPoint = Vector2.new(0, 0.5),
-                    BackgroundTransparency = 1,
-                    Image = HeaderIcon.Url,
-                    ImageColor3 = "FontColor",
-                    ImageRectOffset = HeaderIcon.ImageRectOffset,
-                    ImageRectSize = HeaderIcon.ImageRectSize,
-                    Position = UDim2.new(0, 10, 0.5, 0),
-                    Size = UDim2.fromOffset(16, 16),
-                    Parent = Header,
-                })
-            end
-
-            TitleLabel = New("TextLabel", {
-                AnchorPoint = Vector2.new(0, 0.5),
-                BackgroundTransparency = 1,
-                Position = UDim2.new(0, HeaderIcon and 34 or 10, 0.5, 0),
-                Size = UDim2.new(1, HeaderIcon and -60 or -36, 0, 16),
-                TextSize = 14,
-                TextTruncate = Enum.TextTruncate.AtEnd,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = Header,
-            })
-
-            local Chevron
-            local ChevronIcon = Library:GetIcon("chevron-down")
-            if ChevronIcon then
-                Chevron = New("ImageLabel", {
-                    AnchorPoint = Vector2.new(1, 0.5),
-                    BackgroundTransparency = 1,
-                    Image = ChevronIcon.Url,
-                    ImageColor3 = "FontColor",
-                    ImageRectOffset = ChevronIcon.ImageRectOffset,
-                    ImageRectSize = ChevronIcon.ImageRectSize,
-                    ImageTransparency = 0.4,
-                    Position = UDim2.new(1, -10, 0.5, 0),
-                    Rotation = PlayerInfo.Collapsed and -90 or 0,
-                    Size = UDim2.fromOffset(16, 16),
-                    Visible = PlayerInfo.Collapsible,
-                    Parent = Header,
-                })
-            end
-
-            Body = New("Frame", {
-                BackgroundColor3 = "MainColor",
-                Position = UDim2.fromOffset(0, HeaderHeight + HeaderGap),
-                Size = UDim2.new(1, 0, 0, PlayerInfo.Height),
-                Visible = not PlayerInfo.Collapsed,
-                Parent = Holder,
-            })
-            table.insert(Library.Corners, New("UICorner", {
-                CornerRadius = UDim.new(0, Library.CornerRadius / 2),
-                Parent = Body,
-            }))
-            Library:AddOutline(Body)
-
-            New("UIPadding", {
-                PaddingBottom = UDim.new(0, 6),
-                PaddingLeft = UDim.new(0, 6),
-                PaddingRight = UDim.new(0, 6),
-                PaddingTop = UDim.new(0, 6),
-                Parent = Body,
-            })
-
-            AvatarImage = New("ImageLabel", {
-                BackgroundTransparency = 1,
-                ScaleType = Enum.ScaleType.Fit,
-                Size = UDim2.fromScale(1, 1),
-                Parent = Body,
-            })
-
-            function PlayerInfo:SetCollapsed(Collapsed: boolean)
-                if not PlayerInfo.Collapsible then
-                    Collapsed = false
-                end
-
-                PlayerInfo.Collapsed = Collapsed
-                Body.Visible = not Collapsed
-
-                if Chevron then
-                    Chevron.Rotation = Collapsed and -90 or 0
-                end
-
-                Holder.Size = UDim2.new(1, 0, 0, TotalHeight())
-                Groupbox:Resize()
-            end
-
-            table.insert(PlayerInfo.Connections, Header.MouseButton1Click:Connect(function()
-                if not PlayerInfo.Collapsible then
-                    return
-                end
-
-                PlayerInfo:SetCollapsed(not PlayerInfo.Collapsed)
-            end))
-        else
-            local Box = New("Frame", {
-                BackgroundColor3 = "MainColor",
-                Size = UDim2.fromScale(1, 1),
-                Parent = Holder,
-            })
-            table.insert(Library.Corners, New("UICorner", {
-                CornerRadius = UDim.new(0, Library.CornerRadius / 2),
-                Parent = Box,
-            }))
-            Library:AddOutline(Box)
-
-            New("UIPadding", {
-                PaddingBottom = UDim.new(0, 10),
-                PaddingLeft = UDim.new(0, 10),
-                PaddingRight = UDim.new(0, 10),
-                PaddingTop = UDim.new(0, 10),
-                Parent = Box,
-            })
-
-            --// Square avatar tile on the left, sized off the card height
-            local AvatarSize = PlayerInfo.Height - 20
-
-            local AvatarHolder = New("Frame", {
-                BackgroundColor3 = "BackgroundColor",
-                Size = UDim2.new(0, AvatarSize, 1, 0),
-                Parent = Box,
-            })
-            table.insert(Library.Corners, New("UICorner", {
-                CornerRadius = UDim.new(0, Library.CornerRadius / 2),
-                Parent = AvatarHolder,
-            }))
-            Library:AddOutline(AvatarHolder)
-
-            AvatarImage = New("ImageLabel", {
-                BackgroundTransparency = 1,
-                ScaleType = Enum.ScaleType.Fit,
-                Size = UDim2.fromScale(1, 1),
-                Parent = AvatarHolder,
-            })
-
-            local TextHolder = New("Frame", {
-                BackgroundTransparency = 1,
-                Position = UDim2.fromOffset(AvatarSize + 12, 0),
-                Size = UDim2.new(1, -(AvatarSize + 12), 1, 0),
-                Parent = Box,
-            })
-
-            TitleLabel = New("TextLabel", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 18),
-                TextSize = 15,
-                TextTruncate = Enum.TextTruncate.AtEnd,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = TextHolder,
-            })
-
-            DescriptionHolder = New("Frame", {
-                BackgroundTransparency = 1,
-                Position = UDim2.fromOffset(0, 22),
-                Size = UDim2.new(1, 0, 1, -22),
-                Parent = TextHolder,
-            })
-
-            New("UIListLayout", {
-                Padding = UDim.new(0, 2),
-                SortOrder = Enum.SortOrder.LayoutOrder,
-                Parent = DescriptionHolder,
-            })
-        end
-
-        UpdateThumbnail()
-        UpdateText()
-
-        function PlayerInfo:SetTitle(Title: string)
-            PlayerInfo.Title = Title or ""
-            UpdateText()
-        end
-
-        function PlayerInfo:SetDescription(Description: string | { string })
-            PlayerInfo.Description = Description or ""
-            UpdateText()
-        end
-
-        function PlayerInfo:SetPlayer(Player: Player | string)
-            PlayerInfo.Player = Player
-            PlayerInfo.UserId = nil
-
-            ResolvedUserId = ResolvePlayerUserId(Player, nil)
-            ResolvedName = ResolvePlayerName(Player, ResolvedUserId)
-
-            UpdateThumbnail()
-            UpdateText()
-        end
-
-        function PlayerInfo:SetUserId(UserId: number)
-            PlayerInfo.UserId = UserId
-            PlayerInfo.Player = nil
-
-            ResolvedUserId = ResolvePlayerUserId(nil, UserId)
-            ResolvedName = ResolvePlayerName(nil, ResolvedUserId)
-
-            UpdateThumbnail()
-            UpdateText()
-        end
-
-        function PlayerInfo:SetThumbnail(Thumbnail: string?)
-            PlayerInfo.Thumbnail = Thumbnail
-            UpdateThumbnail()
-        end
-
-        function PlayerInfo:SetHeight(Height: number)
-            assert(Height > 0, "Height must be greater than 0.")
-
-            PlayerInfo.Height = Height
-
-            if Body then
-                Body.Size = UDim2.new(1, 0, 0, Height)
-            end
-
-            Holder.Size = UDim2.new(1, 0, 0, TotalHeight())
+        local PlayerInfo = CreatePlayerCard(Info, Groupbox.Container, true, PLAYER_CARD_NO_INSET, function()
             Groupbox:Resize()
-        end
-
-        function PlayerInfo:SetVisible(Visible: boolean)
-            PlayerInfo.Visible = Visible
-
-            Holder.Visible = Visible
-            Groupbox:Resize()
-        end
+        end)
 
         Groupbox:Resize()
 
-        PlayerInfo.Holder = Holder
         table.insert(Groupbox.Elements, PlayerInfo)
-
         Options[Idx] = PlayerInfo
 
         function PlayerInfo:Destroy()
@@ -9179,8 +9192,8 @@ do
                 Connection:Disconnect()
             end
 
-            if Holder then
-                Holder:Destroy()
+            if PlayerInfo.Holder then
+                PlayerInfo.Holder:Destroy()
             end
 
             local ElemIdx = table.find(Groupbox.Elements, PlayerInfo)
@@ -13193,6 +13206,47 @@ function Library:CreateWindow(WindowInfo)
             })
         end
 
+        --// Player banner: full-width cards stacked under the warning box and
+        --// above the tab's two columns
+        local PlayerBannerHolder = New("Frame", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(0, 7),
+            Size = UDim2.fromScale(1, 0),
+            Visible = false,
+            Parent = TabContainer,
+        })
+        local PlayerBanners = {}
+
+        --// Stacks the banner cards and reports how tall the whole banner is
+        local function LayoutPlayerBanners(): number
+            local Height = 0
+
+            for _, Card in PlayerBanners do
+                if not Card.Visible then
+                    continue
+                end
+
+                Card.Holder.Position = UDim2.fromOffset(Card.Holder.Position.X.Offset, Height)
+                Height += Card:GetTotalHeight() + 6
+            end
+
+            PlayerBannerHolder.Visible = Height > 0
+            PlayerBannerHolder.Size = UDim2.new(1, 0, 0, math.max(0, Height - 6))
+
+            return PlayerBannerHolder.Visible and PlayerBannerHolder.Size.Y.Offset or 0
+        end
+
+        --// Slots the banner in below whatever is already stacked above it
+        local function ApplyPlayerBannerOffset(Offset: number): number
+            local Height = LayoutPlayerBanners()
+            if Height <= 0 then
+                return Offset
+            end
+
+            PlayerBannerHolder.Position = UDim2.fromOffset(0, Offset + 7)
+            return Offset + 7 + Height + 1
+        end
+
         --// Tab Table \\--
         local Tab = {
             Description = Description,
@@ -13298,6 +13352,8 @@ function Library:CreateWindow(WindowInfo)
 
         function Tab:RefreshSides()
             local Offset = WarningBoxHolder.Visible and WarningBox.Size.Y.Offset + 8 or 0
+            Offset = ApplyPlayerBannerOffset(Offset)
+
             for _, Side in Tab.Sides do
                 Side.Position = UDim2.new(Side.Position.X.Scale, 0, 0, Offset)
                 Side.Size = UDim2.new(0.5, -3, 1, -Offset)
@@ -14407,12 +14463,58 @@ function Library:CreateWindow(WindowInfo)
 
         function Tab:GetContentOffset()
             local Offset = WarningBoxHolder.Visible and WarningBox.Size.Y.Offset + 8 or 0
+            Offset = ApplyPlayerBannerOffset(Offset)
+
             if SubTabBar and SubTabBar.Visible then
                 SubTabBar.Position = UDim2.new(0, 2, 0, Offset)
                 Offset += SUBTAB_BAR_HEIGHT + 6
             end
 
             return Offset
+        end
+
+        --// Full-width player card, spanning both columns at the top of the tab.
+        --// The compact card is a groupbox element (Groupbox:AddPlayerInfo).
+        function Tab:AddPlayerInfo(Idx, Info)
+            if Tab.Destroyed then return nil end
+
+            Info = Library:Validate(Info, Templates.PlayerInfo)
+
+            local PlayerInfo = CreatePlayerCard(Info, PlayerBannerHolder, false, PLAYER_CARD_BANNER_INSET, function()
+                Tab:RefreshSides()
+            end)
+
+            table.insert(PlayerBanners, PlayerInfo)
+            Tab:RefreshSides()
+
+            if Idx then
+                Options[Idx] = PlayerInfo
+            end
+
+            function PlayerInfo:Destroy()
+                PlayerInfo.Destroyed = true
+
+                for _, Connection in PlayerInfo.Connections do
+                    Connection:Disconnect()
+                end
+
+                if PlayerInfo.Holder then
+                    PlayerInfo.Holder:Destroy()
+                end
+
+                local BannerIdx = table.find(PlayerBanners, PlayerInfo)
+                if BannerIdx then
+                    table.remove(PlayerBanners, BannerIdx)
+                end
+
+                Tab:RefreshSides()
+
+                if Idx then
+                    Options[Idx] = nil
+                end
+            end
+
+            return PlayerInfo
         end
 
         function Tab:AddSubTab(...)

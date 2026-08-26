@@ -244,7 +244,6 @@ export type ImageInfo = {
 export type PlayerInfoOptions = {
     Player: (Player | string)?,
     UserId: number?,
-    Style: ("Full" | "Compact")?,
     Title: string?,
     Description: (string | { string })?,
     Thumbnail: string?,
@@ -607,6 +606,7 @@ export type Image = {
 
 export type PlayerInfo = {
     Style: "Full" | "Compact",
+    GetTotalHeight: (self: PlayerInfo) -> number,
     Player: (Player | string)?,
     UserId: number?,
     Title: string,
@@ -890,6 +890,7 @@ export type Tab = {
     AddTabbox: (self: Tab, Info: { Side: number, Name: string? }) -> Tabbox,
     AddLeftTabbox: (self: Tab, Name: string?) -> Tabbox,
     AddRightTabbox: (self: Tab, Name: string?) -> Tabbox,
+    AddPlayerInfo: (self: Tab, Idx: string?, Info: PlayerInfoOptions) -> PlayerInfo,
     AddSubTab: (self: Tab, Info: { Name: string, Icon: string? } | string, Icon: string?) -> NestedTab,
     SetSubTabAlignment: (self: Tab, Alignment: "Left" | "Center" | "Right") -> (),
     --// The tab's nested sub tab list in the sidebar; a no-op without sub tabs

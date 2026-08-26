@@ -172,17 +172,15 @@ end
 -- ParrySubTab:Show()
 -- ParrySubTab:SetVisible(false)
 
--- Groupbox:AddPlayerInfo
+-- Tab:AddPlayerInfo / Groupbox:AddPlayerInfo
 -- Arguments: Index, Options
--- A player card: an avatar thumbnail with a title and description lines.
--- Style "Full" puts the avatar beside the text; Style "Compact" is a collapsible
--- header row with the avatar underneath it. Title and Description support rich text.
-local PlayerBox = Tabs.Main:AddRightGroupbox("Player", "user")
-
-PlayerBox:AddPlayerInfo("PlayerCard", {
+-- A player card: an avatar thumbnail with a title and description lines (both rich text).
+-- On a TAB it is a full-width banner across the top, above both columns.
+-- On a GROUPBOX it is the compact form: a header row with the avatar underneath,
+-- which the header collapses away.
+Tabs.Main:AddPlayerInfo("PlayerCard", {
 	-- Defaults to the local player; pass Player = <Player> or UserId = 1 for someone else
-	Style = "Full",
-	Title = "Good Evening, <b>@" .. game.Players.LocalPlayer.Name .. "</b>",
+	Title = "Good Evening, <b>@" .. game.Players.LocalPlayer.Name .. "</b>, Welcome To The Hub",
 
 	-- A single string works too
 	Description = {
@@ -191,14 +189,14 @@ PlayerBox:AddPlayerInfo("PlayerCard", {
 		'\u{00B7} Future: <font color="#8f6bff">All Tycoons Autofarm</font>',
 	},
 
-	-- "HeadShot" (default for Full), "Bust" or "Avatar"
+	-- "HeadShot" (the default here), "Bust" or "Avatar"
 	ThumbnailType = "HeadShot",
 	Height = 84,
 })
 
-PlayerBox:AddPlayerInfo("PlayerCardCompact", {
-	Style = "Compact",
+local PlayerBox = Tabs.Main:AddRightGroupbox("Player", "user")
 
+PlayerBox:AddPlayerInfo("PlayerCardCompact", {
 	-- Header text; leave it out to use the player's display name
 	Title = "User",
 	HeaderIcon = "user",
@@ -207,14 +205,15 @@ PlayerBox:AddPlayerInfo("PlayerCardCompact", {
 	Collapsible = true,
 	Collapsed = false,
 
-	-- "Bust" is the default for Compact; "Avatar" is the full body, which some
-	-- clients fail to load, and "HeadShot" is the tight head crop
+	-- "Bust" is the default here; "Avatar" is the full body, which some clients
+	-- fail to load, and "HeadShot" is the tight head crop
 	ThumbnailType = "Bust",
 	Height = 190,
 })
 
 -- Options.PlayerCard:SetUserId(1)
 -- Options.PlayerCard:SetTitle("Hello there")
+-- Options.PlayerCard:SetDescription({ "\u{00B7} One line" })
 -- Options.PlayerCardCompact:SetCollapsed(true)
 
 -- Groupbox:AddToggle
