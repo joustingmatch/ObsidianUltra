@@ -2109,10 +2109,15 @@ local SLIDER_BALL_MARGIN = math.ceil((SLIDER_BALL_SIZE_ACTIVE - SLIDER_BAR_HEIGH
 local SLIDER_TRACK_GRADIENT_FROM = Color3.fromRGB(138, 138, 138)
 local SLIDER_TRACK_GRADIENT_TO = Color3.fromRGB(64, 64, 64)
 
+--// Sub tab content always swipes from the bottom, independent of Library.TabSwipeFrom
+local SUB_TAB_SWIPE_FROM = "bottom"
+
 --// Left padding of the search box text, leaving room for the icon
 local SEARCHBOX_TEXT_INSET = 38
 
-function Library:PlayTabAnimation(TabCanvas: CanvasGroup, Showing: boolean, OnComplete: (() -> ())?)
+--// SwipeFrom overrides Library.TabSwipeFrom for this canvas; sub tabs pass their
+--// own value so the window-level setting only applies to normal tabs
+function Library:PlayTabAnimation(TabCanvas: CanvasGroup, Showing: boolean, OnComplete: (() -> ())?, SwipeFrom: string?)
     if not TabCanvas then
         if OnComplete then
             OnComplete()
@@ -2144,7 +2149,7 @@ function Library:PlayTabAnimation(TabCanvas: CanvasGroup, Showing: boolean, OnCo
     if Showing then
         local TweenInfo = Library.TabTransitionInfo or TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
         local Offset = Library.TabSwipeOffset or 26
-        local SwipeFrom = string.lower(Library.TabSwipeFrom or "bottom")
+        local SwipeFrom = string.lower(SwipeFrom or Library.TabSwipeFrom or "bottom")
         local StartPosition
 
         if SwipeFrom == "left" then
@@ -14219,7 +14224,7 @@ function Library:CreateWindow(WindowInfo)
                 MoveSubTabUnderline(Button)
 
                 SubTab:RefreshSides()
-                Library:PlayTabAnimation(SubCanvas, true)
+                Library:PlayTabAnimation(SubCanvas, true, nil, SUB_TAB_SWIPE_FROM)
 
                 if Library.Searching then
                     Library:UpdateSearch(Library.SearchText)
@@ -14254,7 +14259,7 @@ function Library:CreateWindow(WindowInfo)
                     SubTab.SidebarEntry:SetActive(false)
                 end
 
-                Library:PlayTabAnimation(SubCanvas, false)
+                Library:PlayTabAnimation(SubCanvas, false, nil, SUB_TAB_SWIPE_FROM)
 
                 if Tab.ActiveSubTab == SubTab then
                     Tab.ActiveSubTab = nil

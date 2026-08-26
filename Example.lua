@@ -74,6 +74,7 @@ local Window = Library:CreateWindow({
 	TabSwipeOffset = 26, -- How many pixels the content slides in from (Default value = 26)
 
 	-- Which edge the new tab's content slides in from: "left", "right", "top" or "bottom"
+	-- Only applies to normal tabs; sub tabs always slide in from the bottom
 	TabSwipeFrom = "right",
 
 })
