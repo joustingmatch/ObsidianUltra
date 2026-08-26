@@ -59,6 +59,23 @@ local Window = Library:CreateWindow({
 	MinimizeKeybind = Enum.KeyCode.RightBracket,
 	MinimizedWidth = 300,
 
+	-- Optional animations. Every key is off by default except SubTabUnderline.
+	Animations = {
+		ToggleWindow = true, -- Fade/scale the window when it is shown or hidden
+		TabSwitch = true, -- Fade + slide the tab content when you switch tabs
+		Groupbox = true,
+		Dropdown = true,
+		KeyPicker = true,
+		SubTabUnderline = true, -- Slide the underline under the active sub tab (Default value = true)
+	},
+
+	-- These only matter when Animations.TabSwitch is on:
+	TabTransitionTime = 0.22, -- Seconds the tab fade/slide takes (Default value = 0.22)
+	TabSwipeOffset = 26, -- How many pixels the content slides in from (Default value = 26)
+
+	-- Which edge the new tab's content slides in from: "left", "right", "top" or "bottom"
+	TabSwipeFrom = "right",
+
 })
 
 -- CALLBACK NOTE:
