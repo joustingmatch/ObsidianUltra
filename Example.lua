@@ -92,17 +92,6 @@ local Tabs = {
 	Main = Window:AddTab({ Name = "Main", Icon = "user", Description = "Main features" }),
 	Key = Window:AddKeyTab("Key System"),
 	["Sub Tabs"] = Window:AddTab({ Name = "Sub Tabs", Icon = "layers", Description = "Tabs inside a tab" }),
-
-	-- Layout = "Single" (or "Center") drops the right column and centers the left
-	-- one, so everything stacks in a single column. Default is "Dual".
-	-- ColumnWidth sets how wide that column is: a scale when <= 1, pixels above it.
-	["One Column"] = Window:AddTab({
-		Name = "One Column",
-		Icon = "align-center",
-		Description = "Single column layout",
-		Layout = "Single",
-		ColumnWidth = 0.6,
-	}),
 	["UI Settings"] = Window:AddTab({ Name = "UI Settings", Icon = "settings", Description = "Configure the menu" }),
 }
 
@@ -137,31 +126,6 @@ local Tab2 = TabBox:AddTab("Tab 2")
 
 -- You can now call AddToggle, etc on the tabs you added to the Tabbox
 ]]
-
--- Everything works the same inside a single column tab; AddRightGroupbox simply
--- lands in the same centered column, in the order you create things.
-do
-	local OneColumn = Tabs["One Column"]
-
-	OneColumn:AddPlayerInfo("OneColumnPlayer", {
-		Title = "Single column layout",
-		Description = '\u{00B7} Groupboxes stack in one centered column',
-	})
-
-	local InfoBox = OneColumn:AddLeftGroupbox("Info", "info")
-	InfoBox:AddLabel("Nothing is split across two columns here", true)
-	InfoBox:AddToggle("OneColumnToggle", { Text = "Enable Feature", Default = false })
-	InfoBox:AddSlider("OneColumnSlider", { Text = "Amount", Default = 25, Min = 0, Max = 100, Rounding = 0 })
-
-	-- Added with AddRightGroupbox, but it still lands in the centered column
-	local StatusBox = OneColumn:AddRightGroupbox("Status", "activity")
-	StatusBox:AddDropdown("OneColumnMode", {
-		Values = { "Idle", "Farming", "Questing" },
-		Default = 1,
-		Text = "Mode",
-	})
-	StatusBox:AddButton({ Text = "Run", Func = function() end })
-end
 
 -- Sub Tabs (tabs inside a tab) show up as a button row above the tab's content.
 -- Every sub tab gets its own left/right sides, so it supports everything a tab does:

@@ -5177,34 +5177,6 @@ end
 local PLAYER_CARD_NO_INSET = { X = 0, Width = 0 }
 local PLAYER_CARD_BANNER_INSET = { X = 2, Width = -5 }
 
---// Column geometry for a tab's two sides. Single-column tabs centre the first
---// side and hide the second, which then just aliases the first.
-local SINGLE_COLUMN_WIDTH = 0.6
-
-local function ApplySideLayout(Sides, SingleColumn: boolean, ColumnWidth: number, Offset: number)
-    if SingleColumn then
-        local Side = Sides[1]
-        local Scale = ColumnWidth <= 1 and ColumnWidth or 0
-        local Pixels = ColumnWidth > 1 and ColumnWidth or -6
-
-        Side.AnchorPoint = Vector2.new(0.5, 0)
-        Side.Position = UDim2.new(0.5, 0, 0, Offset)
-        Side.Size = UDim2.new(Scale, Pixels, 1, -Offset)
-
-        if Sides[2] ~= Side then
-            Sides[2].Visible = false
-        end
-
-        return
-    end
-
-    for Index, Side in Sides do
-        Side.AnchorPoint = Index == 1 and Vector2.zero or Vector2.new(1, 0)
-        Side.Position = UDim2.new(Index == 1 and 0 or 1, 0, 0, Offset)
-        Side.Size = UDim2.new(0.5, -3, 1, -Offset)
-    end
-end
-
 local BaseGroupbox = {}
 do
     local Funcs = {}
@@ -12965,29 +12937,17 @@ function Library:CreateWindow(WindowInfo)
         local Name = nil
         local Icon = nil
         local Description = nil
-        local Layout = nil
-        local ColumnWidth = nil
 
         if select("#", ...) == 1 and typeof(...) == "table" then
             local Info = select(1, ...)
             Name = Info.Name or "Tab"
             Icon = Info.Icon
             Description = Info.Description
-            Layout = Info.Layout
-            ColumnWidth = Info.ColumnWidth
         else
             Name = select(1, ...)
             Icon = select(2, ...)
             Description = select(3, ...)
         end
-
-        --// "Single" (aka "Center") drops the right column and centres the left one,
-        --// so info-heavy tabs are not spread across a split layout
-        local SingleColumn = typeof(Layout) == "string"
-            and table.find({ "single", "center", "centre", "centered", "one" }, string.lower(Layout)) ~= nil
-
-        --// Width of that centred column: a scale when <= 1, otherwise pixels
-        ColumnWidth = typeof(ColumnWidth) == "number" and ColumnWidth or SINGLE_COLUMN_WIDTH
 
         local TabButton: TextButton
         local TabLabel
@@ -13091,7 +13051,6 @@ function Library:CreateWindow(WindowInfo)
             })
 
             TabLeft = New("ScrollingFrame", {
-                AnchorPoint = SingleColumn and Vector2.new(0.5, 0) or Vector2.zero,
                 AutomaticCanvasSize = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
                 CanvasSize = UDim2.fromScale(0, 0),
@@ -13126,7 +13085,6 @@ function Library:CreateWindow(WindowInfo)
 
             TabRight = New("ScrollingFrame", {
                 AnchorPoint = Vector2.new(1, 0),
-                Visible = not SingleColumn,
                 AutomaticCanvasSize = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
                 CanvasSize = UDim2.fromScale(0, 0),
@@ -13298,11 +13256,9 @@ function Library:CreateWindow(WindowInfo)
 
             Window = Window,
             Canvas = TabCanvas,
-            --// Single-column tabs alias both sides, so AddRightGroupbox lands in
-            --// the same centred column
             Sides = {
                 TabLeft,
-                SingleColumn and TabLeft or TabRight,
+                TabRight,
             },
             WarningBox = {
                 IsNormal = false,
@@ -13398,16 +13354,15 @@ function Library:CreateWindow(WindowInfo)
             local Offset = WarningBoxHolder.Visible and WarningBox.Size.Y.Offset + 8 or 0
             Offset = ApplyPlayerBannerOffset(Offset)
 
-            ApplySideLayout(Tab.Sides, SingleColumn, ColumnWidth, Offset)
+            for _, Side in Tab.Sides do
+                Side.Position = UDim2.new(Side.Position.X.Scale, 0, 0, Offset)
+                Side.Size = UDim2.new(0.5, -3, 1, -Offset)
+            end
 
             for _, SubTab in Tab.SubTabs do
                 SubTab:RefreshSides()
             end
         end
-
-        --// Lay the columns out immediately so a single-column tab is centred
-        --// before it is ever shown
-        ApplySideLayout({ TabLeft, SingleColumn and TabLeft or TabRight }, SingleColumn, ColumnWidth, 0)
 
         function Tab:Resize(ResizeWarningBox: boolean?)
             if ResizeWarningBox then
@@ -14706,7 +14661,6 @@ function Library:CreateWindow(WindowInfo)
             })
 
             local SubLeft = New("ScrollingFrame", {
-                AnchorPoint = SingleColumn and Vector2.new(0.5, 0) or Vector2.zero,
                 AutomaticCanvasSize = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
                 CanvasSize = UDim2.fromScale(0, 0),
@@ -14717,7 +14671,6 @@ function Library:CreateWindow(WindowInfo)
             })
             local SubRight = New("ScrollingFrame", {
                 AnchorPoint = Vector2.new(1, 0),
-                Visible = not SingleColumn,
                 AutomaticCanvasSize = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
                 CanvasSize = UDim2.fromScale(0, 0),
@@ -14766,7 +14719,7 @@ function Library:CreateWindow(WindowInfo)
                 Button = Button,
                 Sides = {
                     SubLeft,
-                    SingleColumn and SubLeft or SubRight,
+                    SubRight,
                 },
 
                 Groupboxes = {},
@@ -14782,10 +14735,13 @@ function Library:CreateWindow(WindowInfo)
             SubTab.AddRightTabbox = Tab.AddRightTabbox
 
             function SubTab:RefreshSides()
-                ApplySideLayout(SubTab.Sides, SingleColumn, ColumnWidth, Tab:GetContentOffset())
-            end
+                local Offset = Tab:GetContentOffset()
 
-            SubTab:RefreshSides()
+                for _, Side in SubTab.Sides do
+                    Side.Position = UDim2.new(Side.Position.X.Scale, 0, 0, Offset)
+                    Side.Size = UDim2.new(0.5, -3, 1, -Offset)
+                end
+            end
 
             function SubTab:Resize()
                 SubTab:RefreshSides()
