@@ -245,6 +245,7 @@ export type PlayerInfoOptions = {
     Player: (Player | string)?,
     UserId: number?,
     Title: string?,
+    --// Full card only; the compact card shows just the avatar
     Description: (string | { string | { Text: string?, Divider: boolean? } })?,
     Thumbnail: string?,
     ThumbnailType: ("HeadShot" | "Bust" | "Avatar")?,

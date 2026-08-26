@@ -4725,6 +4725,7 @@ do
 end
 
 --// Player card: an avatar thumbnail paired with a title and description lines.
+--// Description belongs to the full card; the compact card shows the avatar alone.
 --// The full card spans a tab, above its columns; the compact card is a groupbox
 --// element - a header row whose avatar collapses away when the header is clicked.
 local PLAYER_THUMBNAIL_TYPES = {
@@ -4836,10 +4837,6 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
     local ResolvedUserId = ResolvePlayerUserId(PlayerInfo.Player, PlayerInfo.UserId)
     local ResolvedName = ResolvePlayerName(PlayerInfo.Player, ResolvedUserId)
 
-    --// Compact cards stack their description lines under the avatar, so the body
-    --// grows by however tall those lines are
-    local DescriptionHeight = 0
-
     function PlayerInfo:GetTotalHeight(): number
         if not IsCompact then
             return PlayerInfo.Height
@@ -4849,7 +4846,7 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
             return PLAYER_CARD_HEADER_HEIGHT
         end
 
-        return PLAYER_CARD_HEADER_HEIGHT + PLAYER_CARD_HEADER_GAP + PlayerInfo.Height + DescriptionHeight
+        return PLAYER_CARD_HEADER_HEIGHT + PLAYER_CARD_HEADER_GAP + PlayerInfo.Height
     end
 
     local Holder = New("Frame", {
@@ -4913,21 +4910,6 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
         AvatarImage.ImageRectSize = Vector2.zero
     end
 
-    --// Splits the compact body between the avatar and the lines below it
-    local function RefreshCompactLayout(ContentHeight: number)
-        if not (IsCompact and Body and DescriptionHolder and AvatarImage) then
-            return
-        end
-
-        DescriptionHeight = ContentHeight > 0 and ContentHeight + 6 or 0
-
-        DescriptionHolder.Size = UDim2.new(1, 0, 0, DescriptionHeight)
-        AvatarImage.Size = UDim2.new(1, 0, 1, -DescriptionHeight)
-        Body.Size = UDim2.new(1, 0, 0, PlayerInfo.Height + DescriptionHeight)
-
-        RefreshHeight()
-    end
-
     local function UpdateText()
         local TitleText = GetTitleText()
 
@@ -4950,8 +4932,6 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
             table.remove(DescriptionElements, Index):Destroy()
         end
 
-        local ContentHeight = 0
-
         for Index, Entry in Lines do
             if IsDescriptionDivider(Entry) then
                 local DividerHolder = New("Frame", {
@@ -4970,7 +4950,6 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
                 })
 
                 table.insert(DescriptionElements, DividerHolder)
-                ContentHeight += PLAYER_CARD_DIVIDER_HEIGHT
             else
                 local Text = GetDescriptionText(Entry)
 
@@ -4987,16 +4966,10 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
                 })
 
                 table.insert(DescriptionElements, Label)
-                ContentHeight += PLAYER_CARD_LINE_HEIGHT
                 PlayerInfo.Text = PlayerInfo.Text .. " " .. StripRichText(Text)
             end
         end
 
-        if #Lines > 1 then
-            ContentHeight += (#Lines - 1) * PLAYER_CARD_LINE_PADDING
-        end
-
-        RefreshCompactLayout(ContentHeight)
     end
 
     if IsCompact then
@@ -5084,20 +5057,6 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
             ScaleType = Enum.ScaleType.Fit,
             Size = UDim2.fromScale(1, 1),
             Parent = Body,
-        })
-
-        DescriptionHolder = New("Frame", {
-            AnchorPoint = Vector2.new(0, 1),
-            BackgroundTransparency = 1,
-            Position = UDim2.fromScale(0, 1),
-            Size = UDim2.new(1, 0, 0, 0),
-            Parent = Body,
-        })
-
-        New("UIListLayout", {
-            Padding = UDim.new(0, PLAYER_CARD_LINE_PADDING),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-            Parent = DescriptionHolder,
         })
 
         function PlayerInfo:SetCollapsed(Collapsed: boolean)
@@ -5239,7 +5198,7 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
         PlayerInfo.Height = Height
 
         if Body then
-            Body.Size = UDim2.new(1, 0, 0, Height + DescriptionHeight)
+            Body.Size = UDim2.new(1, 0, 0, Height)
         end
 
         RefreshHeight()

@@ -205,12 +205,7 @@ PlayerBox:AddPlayerInfo("PlayerCardCompact", {
 	Title = "User",
 	HeaderIcon = "user",
 
-	-- Description lines sit under the avatar here, and the card grows to fit them
-	Description = {
-		'\u{00B7} Rank: <font color="#8f6bff">Owner</font>',
-		{ Divider = true },
-		'\u{00B7} Playtime: <font color="#8f6bff">4h 12m</font>',
-	},
+	-- Description belongs to the full card; the compact card is the avatar alone
 
 	-- Clicking the header hides/shows the avatar
 	Collapsible = true,
