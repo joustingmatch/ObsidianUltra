@@ -1014,7 +1014,13 @@ export type Window = {
     HideTabInfo: (self: Window) -> (),
     AddTab: (
         self: Window,
-        Info: { Name: string, Icon: string?, Description: string? } | string,
+        Info: {
+            Name: string,
+            Icon: string?,
+            Description: string?,
+            Layout: ("Dual" | "Single" | "Center")?,
+            ColumnWidth: number?,
+        } | string,
         Icon: string?,
         Description: string?
     ) -> Tab,
