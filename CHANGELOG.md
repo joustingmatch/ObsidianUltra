@@ -8,6 +8,8 @@
 + Defaults to the local player; Player, UserId, Thumbnail and ThumbnailType ("HeadShot" | "Bust" | "Avatar") override it
 + Methods: SetTitle, SetDescription, SetPlayer, SetUserId, SetThumbnail, SetHeight, SetCollapsed, SetVisible, Destroy
 
++ Compact player cards now render their Description: the lines sit under the avatar and the card grows to fit them, live-updating through SetDescription
+
 [changes]
 + TabSwipeFrom now only applies to normal tabs; sub tab content always swipes in from the bottom
 ```
