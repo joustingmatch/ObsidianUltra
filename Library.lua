@@ -5178,8 +5178,9 @@ local PLAYER_CARD_NO_INSET = { X = 0, Width = 0 }
 local PLAYER_CARD_BANNER_INSET = { X = 2, Width = -5 }
 
 --// Column geometry for a tab's two sides. Single-column tabs centre the first
---// side and hide the second, which then just aliases the first.
-local SINGLE_COLUMN_WIDTH = 0.6
+--// side and hide the second, which then just aliases the first. The centred
+--// column takes the full tab width unless ColumnWidth narrows it.
+local SINGLE_COLUMN_WIDTH = 1
 
 local function ApplySideLayout(Sides, SingleColumn: boolean, ColumnWidth: number, Offset: number)
     if SingleColumn then

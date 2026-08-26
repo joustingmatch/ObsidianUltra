@@ -9,7 +9,7 @@
 + Methods: SetTitle, SetDescription, SetPlayer, SetUserId, SetThumbnail, SetHeight, SetCollapsed, SetVisible, Destroy
 
 + Single column tabs: Window:AddTab({ ..., Layout = "Single" }) (also "Center") drops the right column and centers the left one, for tabs that do not need a split layout
-+ ColumnWidth tunes that column: a scale when <= 1, pixels above it (default 0.6)
++ The centered column fills the tab width; ColumnWidth narrows it (a scale when <= 1, pixels above it)
 + AddRightGroupbox and sub tabs both follow the single column layout
 
 [changes]
