@@ -13248,11 +13248,14 @@ function Library:CreateWindow(WindowInfo)
 
         --// Player banner: full-width cards stacked under the warning box and
         --// above the tab's two columns
+        --// It is a sibling of the scrolling columns, not a child, so it stays put
+        --// while the tab's content scrolls under it; the ZIndex keeps it on top
         local PlayerBannerHolder = New("Frame", {
             BackgroundTransparency = 1,
             Position = UDim2.fromOffset(0, 7),
             Size = UDim2.fromScale(1, 0),
             Visible = false,
+            ZIndex = 3,
             Parent = TabContainer,
         })
         local PlayerBanners = {}
