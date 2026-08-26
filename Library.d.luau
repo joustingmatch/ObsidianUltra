@@ -241,6 +241,21 @@ export type ImageInfo = {
     Visible: boolean?,
 }
 
+export type PlayerInfoOptions = {
+    Player: (Player | string)?,
+    UserId: number?,
+    Style: ("Full" | "Compact")?,
+    Title: string?,
+    Description: (string | { string })?,
+    Thumbnail: string?,
+    ThumbnailType: ("HeadShot" | "Bust" | "Avatar")?,
+    HeaderIcon: string?,
+    Collapsible: boolean?,
+    Collapsed: boolean?,
+    Height: number?,
+    Visible: boolean?,
+}
+
 export type VideoInfo = {
     Video: string,
     Looped: boolean?,
@@ -590,6 +605,33 @@ export type Image = {
     Destroy: (self: Image) -> (),
 }
 
+export type PlayerInfo = {
+    Style: "Full" | "Compact",
+    Player: (Player | string)?,
+    UserId: number?,
+    Title: string,
+    Description: string | { string },
+    Thumbnail: string?,
+    ThumbnailType: string?,
+    HeaderIcon: string,
+    Collapsible: boolean,
+    Collapsed: boolean,
+    Height: number,
+    Visible: boolean,
+    Type: "PlayerInfo",
+    Holder: Frame,
+
+    SetTitle: (self: PlayerInfo, Title: string) -> (),
+    SetDescription: (self: PlayerInfo, Description: string | { string }) -> (),
+    SetPlayer: (self: PlayerInfo, Player: Player | string) -> (),
+    SetUserId: (self: PlayerInfo, UserId: number) -> (),
+    SetThumbnail: (self: PlayerInfo, Thumbnail: string?) -> (),
+    SetHeight: (self: PlayerInfo, Height: number) -> (),
+    SetCollapsed: ((self: PlayerInfo, Collapsed: boolean) -> ())?,
+    SetVisible: (self: PlayerInfo, Visible: boolean) -> (),
+    Destroy: (self: PlayerInfo) -> (),
+}
+
 export type Video = {
     Video: string,
     Looped: boolean,
@@ -640,6 +682,7 @@ export type Element =
     | Dropdown
     | Viewport
     | Image
+    | PlayerInfo
     | Video
     | UIPassthrough
     | Divider
@@ -650,6 +693,7 @@ export type Option =
     | Dropdown
     | Viewport
     | Image
+    | PlayerInfo
     | Video
     | UIPassthrough
     | KeyPicker
@@ -672,6 +716,7 @@ export type BaseGroupbox = {
     AddDropdown: (self: Groupbox, Idx: string, Info: DropdownInfo) -> Dropdown,
     AddViewport: (self: Groupbox, Idx: string, Info: ViewportInfo) -> Viewport,
     AddImage: (self: Groupbox, Idx: string, Info: ImageInfo) -> Image,
+    AddPlayerInfo: (self: Groupbox, Idx: string, Info: PlayerInfoOptions) -> PlayerInfo,
     AddVideo: (self: Groupbox, Idx: string, Info: VideoInfo) -> Video,
     AddUIPassthrough: (self: Groupbox, Idx: string, Info: UIPassthroughInfo) -> UIPassthrough,
     AddDependencyBox: (self: Groupbox) -> DependencyBox,

@@ -172,6 +172,49 @@ end
 -- ParrySubTab:Show()
 -- ParrySubTab:SetVisible(false)
 
+-- Groupbox:AddPlayerInfo
+-- Arguments: Index, Options
+-- A player card: an avatar thumbnail with a title and description lines.
+-- Style "Full" puts the avatar beside the text; Style "Compact" is a collapsible
+-- header row with the avatar underneath it. Title and Description support rich text.
+local PlayerBox = Tabs.Main:AddRightGroupbox("Player", "user")
+
+PlayerBox:AddPlayerInfo("PlayerCard", {
+	-- Defaults to the local player; pass Player = <Player> or UserId = 1 for someone else
+	Style = "Full",
+	Title = "Good Evening, <b>@" .. game.Players.LocalPlayer.Name .. "</b>",
+
+	-- A single string works too
+	Description = {
+		'\u{00B7} Method: <font color="#8f6bff">Beta Tycoon</font>',
+		'\u{00B7} Support: <font color="#8f6bff">Elemental Tycoon</font>',
+		'\u{00B7} Future: <font color="#8f6bff">All Tycoons Autofarm</font>',
+	},
+
+	-- "HeadShot" (default for Full), "Bust" or "Avatar"
+	ThumbnailType = "HeadShot",
+	Height = 84,
+})
+
+PlayerBox:AddPlayerInfo("PlayerCardCompact", {
+	Style = "Compact",
+
+	-- Header text; leave it out to use the player's display name
+	Title = "User",
+	HeaderIcon = "user",
+
+	-- Clicking the header hides/shows the avatar
+	Collapsible = true,
+	Collapsed = false,
+
+	ThumbnailType = "Avatar", -- Full body, the default for Compact
+	Height = 190,
+})
+
+-- Options.PlayerCard:SetUserId(1)
+-- Options.PlayerCard:SetTitle("Hello there")
+-- Options.PlayerCardCompact:SetCollapsed(true)
+
 -- Groupbox:AddToggle
 -- Arguments: Index, Options
 LeftGroupBox:AddToggle("MyToggle", {
