@@ -6,38 +6,30 @@ local clonefunction = (clonefunction or copyfunction or function(func)
 end)
 
 local HttpService: HttpService = cloneref(game:GetService("HttpService"))
+
+--// Fix is_____ functions for shitsploits, those functions should never error, only return a boolean. (why is this still a problem in the big 2026)
 local isfolder, isfile, listfiles = isfolder, isfile, listfiles
+local isfolder_copy, isfile_copy, listfiles_copy = clonefunction(isfolder), clonefunction(isfile), clonefunction(listfiles)
+local isfolder_success, isfolder_error = pcall(function() return isfolder_copy("test" .. tostring(math.random(1000000, 9999999))) end)
 
-if typeof(clonefunction) == "function" then
-    -- Fix is_____ functions for shitsploits, those functions should never error, only return a boolean.
+if isfolder_success == false or typeof(isfolder_error) ~= "boolean" then
+    isfolder = function(folder)
+        local success, data = pcall(isfolder_copy, folder)
+        return (if success then data else false)
+    end
 
-    local
-        isfolder_copy,
-        isfile_copy,
-        listfiles_copy = clonefunction(isfolder), clonefunction(isfile), clonefunction(listfiles)
+    isfile = function(file)
+        local success, data = pcall(isfile_copy, file)
+        return (if success then data else false)
+    end
 
-    local isfolder_success, isfolder_error = pcall(function()
-        return isfolder_copy("test" .. tostring(math.random(1000000, 9999999)))
-    end)
-
-    if isfolder_success == false or typeof(isfolder_error) ~= "boolean" then
-        isfolder = function(folder)
-            local success, data = pcall(isfolder_copy, folder)
-            return (if success then data else false)
-        end
-
-        isfile = function(file)
-            local success, data = pcall(isfile_copy, file)
-            return (if success then data else false)
-        end
-
-        listfiles = function(folder)
-            local success, data = pcall(listfiles_copy, folder)
-            return (if success then data else {})
-        end
+    listfiles = function(folder)
+        local success, data = pcall(listfiles_copy, folder)
+        return (if success then data else {})
     end
 end
 
+--// Save Manager
 local SaveManager = {
     Library = nil,
 
@@ -205,7 +197,12 @@ local ElementParser = {}; do
     CreateParser(
         "Groupbox", "Tabs",
         function(Index: string, Groupbox: any, TabIndex: string)
-            return { collapsed = Groupbox.Collapsed, tabIdx = TabIndex }
+            return {
+                tabIdx = TabIndex,
+                collapsed = Groupbox.Collapsed,
+                poppedOut = Groupbox.PoppedOut == true,
+                popoutPos = if Groupbox.PoppedOut and Groupbox.PopOutFloat then SpecialValueParser.UDim2.Encode(Groupbox.PopOutFloat.Position) else nil,
+            }
         end,
         function(_, Data: any)
             local TabIndex, Index = Data.tabIdx, Data.idx
@@ -216,9 +213,55 @@ local ElementParser = {}; do
             if not Tab then return end
 
             local Groupbox = Tab.Groupboxes[Index]
-            if not Groupbox or Groupbox.Collapsed == Data.collapsed then return end
+            if not Groupbox then return end
 
-            Groupbox:SetCollapsed(Data.collapsed == true)
+            --// Collapsed
+            if Groupbox.Collapsed ~= Data.collapsed then
+                Groupbox:SetCollapsed(Data.collapsed == true)
+            end
+
+            --// Popout
+            if Groupbox.PopOutEnabled then
+                if Data.poppedOut == true then
+                    local Position = SpecialValueParser.UDim2.Decode(Data.popoutPos)
+                    Groupbox:SetPoppedOut(true, Position)
+                elseif Groupbox.PoppedOut then
+                    Groupbox:SetPoppedOut(false)
+                end
+            end
+        end,
+        true
+    )
+
+    CreateParser(
+        "Tabbox", "Tabs",
+        function(Index: string, Tabbox: any, TabIndex: string)
+            return {
+                tabIdx = TabIndex,
+                poppedOut = Tabbox.PoppedOut == true,
+                popoutPos = if Tabbox.PoppedOut and Tabbox.PopOutFloat then SpecialValueParser.UDim2.Encode(Tabbox.PopOutFloat.Position) else nil,
+            }
+        end,
+        function(_, Data: any)
+            local TabIndex, Index = Data.tabIdx, Data.idx
+            if typeof(TabIndex) ~= "string" or typeof(Index) ~= "string" then return end
+
+            local Tabs = SaveManager.Library and SaveManager.Library.Tabs
+            local Tab = Tabs and Tabs[TabIndex]
+            if not Tab then return end
+
+            local Tabbox = Tab.Tabboxes and Tab.Tabboxes[Index]
+            if not Tabbox then return end
+
+            --// Popout
+            if Tabbox.PopOutEnabled then
+                if Data.poppedOut == true then
+                    local Position = SpecialValueParser.UDim2.Decode(Data.popoutPos)
+                    Tabbox:SetPoppedOut(true, Position)
+                elseif Tabbox.PoppedOut then
+                    Tabbox:SetPoppedOut(false)
+                end
+            end
         end,
         true
     )
@@ -243,15 +286,15 @@ end
 
 --// Folder helper \\--
 local function SplitPath(Path: string): {string}
-	local Result = {}
-	local Current = ""
+    local Result = {}
+    local Current = ""
 
-	for Part in string.gmatch(Path, "[^/]+") do
-		Current = if Current == "" then Part else (Current .. "/" .. Part)
-		table.insert(Result, Current)
-	end
+    for Part in string.gmatch(Path, "[^/]+") do
+        Current = if Current == "" then Part else (Current .. "/" .. Part)
+        table.insert(Result, Current)
+    end
 
-	return Result
+    return Result
 end
 
 local function GetFolderPath(): false | string
@@ -308,7 +351,7 @@ end
 function SaveManager:IgnoreThemeSettings()
     SaveManager:SetIgnoreIndexes({
         "BackgroundColor", "MainColor", "AccentColor", "OutlineColor", "FontColor", "FontFace", "BackgroundImage",
-        "ThemeManager_ThemeList", "ThemeManager_CustomThemeList", "ThemeManager_CustomThemeName"
+        "ThemeManager_ThemeList", "ThemeManager_CustomThemeList", "ThemeManager_CustomThemeName", "ThemeManager_ThemeJSON"
     })
 end
 
@@ -405,27 +448,12 @@ function SaveManager:RefreshConfigList()
     return FileNames
 end
 
-function SaveManager:Save(ConfigName: string): (boolean, string?)
-    if IsStringEmpty(ConfigName) then
-        return false, "Invalid config name provided"
-    end
-
-    if string.lower(ConfigName) == "autoload" then
-        return false, "Invalid config name provided"
-    end
-
-    local ConfigPath = GetConfigPath(ConfigName)
-    if ConfigPath == false then
-        return false, "Invalid config name provided"
-    end
-
-    SaveManager:CheckFolderTree()
-
+function SaveManager:SaveJSON(ConfigName)
     local Library = SaveManager.Library
     local IgnoreIndexes = SaveManager.Ignore
     local CurrentData = {
         timestamp = os.date("%d.%m.%Y %H:%M:%S"),
-        name = ConfigName,
+        name = ConfigName or "",
 
         objects = {},
         keybindMenu = if Library.KeybindFrame then {
@@ -456,23 +484,58 @@ function SaveManager:Save(ConfigName: string): (boolean, string?)
         table.insert(CurrentData.objects, Parser.Save(Index, Option))
     end
 
-    --// Groupboxes
+    --// Groupboxes, Tabboxes
     for TabIndex, Tab in Library.Tabs do
-        if not Tab.Groupboxes then continue end
+        if Tab.Groupboxes then
+            for Index, Groupbox in Tab.Groupboxes do
+                if typeof(Index) ~= "string" or IgnoreIndexes[Index] then continue end
 
-        for Index, Groupbox in Tab.Groupboxes do
-            if IgnoreIndexes[Index] then continue end
+                local Parser = ElementParser.Groupbox
+                if not Parser then continue end
 
-            local Parser = ElementParser.Groupbox
-            if not Parser then continue end
+                table.insert(CurrentData.objects, Parser.Save(Index, Groupbox, TabIndex))
+            end
+        end
 
-            table.insert(CurrentData.objects, Parser.Save(Index, Groupbox, TabIndex))
+        if Tab.Tabboxes then
+            for Index, Tabbox in Tab.Tabboxes do
+                if typeof(Index) ~= "string" or IgnoreIndexes[Index] then continue end
+
+                local Parser = ElementParser.Tabbox
+                if not Parser then continue end
+
+                table.insert(CurrentData.objects, Parser.Save(Index, Tabbox, TabIndex))
+            end
         end
     end
 
     local SuccessEncode, EncodedData = pcall(HttpService.JSONEncode, HttpService, CurrentData)
     if not SuccessEncode then
-        return false, "Failed to encode data"
+        return "", false, "Failed to encode data"
+    end
+
+    return EncodedData, true
+end
+
+function SaveManager:Save(ConfigName: string): (boolean, string?)
+    if IsStringEmpty(ConfigName) then
+        return false, "Invalid config name provided"
+    end
+
+    if string.lower(ConfigName) == "autoload" then
+        return false, "Invalid config name provided"
+    end
+
+    local ConfigPath = GetConfigPath(ConfigName)
+    if ConfigPath == false then
+        return false, "Invalid config name provided"
+    end
+
+    SaveManager:CheckFolderTree()
+
+    local EncodedData, SuccessEncode, EncodeErrorMessage = SaveManager:SaveJSON(ConfigName)
+    if not SuccessEncode then
+        return false, EncodeErrorMessage
     end
 
     local SuccessWrite, ErrorMessage = pcall(writefile, ConfigPath, EncodedData)
@@ -483,19 +546,9 @@ function SaveManager:Save(ConfigName: string): (boolean, string?)
     return true
 end
 
-function SaveManager:Load(ConfigName: string): (boolean, string?)
-    if IsStringEmpty(ConfigName) then
-        return false, "No config is selected"
-    end
-
-    local ConfigPath = GetConfigPath(ConfigName)
-    if ConfigPath == false or not isfile(ConfigPath) then
-        return false, "Config file does not exist"
-    end
-
-    local SuccessRead, Content = pcall(readfile, ConfigPath)
-    if not SuccessRead then
-        return false, "Failed to read config file"
+function SaveManager:LoadJSON(Content: string)
+    if IsStringEmpty(Content) then
+        return false, "No JSON provided"
     end
 
     local SuccessDecode, Decoded = pcall(HttpService.JSONDecode, HttpService, Content)
@@ -542,6 +595,24 @@ function SaveManager:Load(ConfigName: string): (boolean, string?)
     end
 
     return true
+end
+
+function SaveManager:Load(ConfigName: string): (boolean, string?)
+    if IsStringEmpty(ConfigName) then
+        return false, "No config is selected"
+    end
+
+    local ConfigPath = GetConfigPath(ConfigName)
+    if ConfigPath == false or not isfile(ConfigPath) then
+        return false, "Config file does not exist"
+    end
+
+    local SuccessRead, Content = pcall(readfile, ConfigPath)
+    if not SuccessRead then
+        return false, "Failed to read config file"
+    end
+
+    return SaveManager:LoadJSON(Content)
 end
 
 function SaveManager:Delete(ConfigName: string): (boolean | string?)
@@ -703,9 +774,13 @@ end
 
 function SaveManager:BuildConfigSection(Tab: any, IconName: string)
     assert(SaveManager.Library, "Library is not set, call SaveManager:SetLibrary(Library) first.")
-    local ConfigurationBox = Tab:AddRightGroupbox("Configuration", IconName or "folder-cog")
-    
-    local ConfigNameInput, ConfigList, AutoloadConfigLabel
+    local ConfigurationBox = Tab:AddGroupbox({
+        Side = "Right",
+        Name = "Configuration",
+        IconName = IconName or "folder-cog",
+    })
+
+    local ConfigNameInput, ConfigList, ConfigJSONInput, AutoloadConfigLabel
     local function RefreshList()
         ConfigList:SetValues(SaveManager:RefreshConfigList())
         ConfigList:SetValue(nil)
@@ -795,13 +870,26 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
                 return
             end
 
-            local Success, ErrorMessage = SaveManager:Load(ConfigName)
-            if not Success then
-                SaveManager.Library:Notify(string.format("Failed to load config %q: %s", ConfigName, ErrorMessage))
-                return
-            end
+            ShowDialog(
+                function(): boolean
+                    return true --// Always show
+                end,
 
-            SaveManager.Library:Notify(string.format("Successfully loaded config %q", ConfigName))
+                "SaveManager_LoadConfig",
+                "Load config",
+                string.format("Are you sure you want to load %q? Your current settings will be overwritten.", ConfigName),
+
+                "Load",
+                function()
+                    local Success, ErrorMessage = SaveManager:Load(ConfigName)
+                    if not Success then
+                        SaveManager.Library:Notify(string.format("Failed to load config %q: %s", ConfigName, ErrorMessage))
+                        return
+                    end
+
+                    SaveManager.Library:Notify(string.format("Successfully loaded config %q", ConfigName))
+                end
+            )
         end
     })
     
@@ -930,14 +1018,65 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
 
     AutoloadConfigLabel = ConfigurationBox:AddLabel("Current autoload config: ...", true);
 
+    ConfigurationBox:AddDivider()
+
+    --// Import & Export
+    ConfigurationBox:AddInput("SaveManager_JSON", {
+        Text = "Config JSON"
+    })
+
+    ConfigurationBox:AddButton("Import config", function()
+        local ConfigJSON = ConfigJSONInput.Value
+        if IsStringEmpty(ConfigJSON) then
+            SaveManager.Library:Notify("Configuration JSON cannot be empty")
+            return
+        end
+
+        ShowDialog(
+            function(): boolean
+                return true --// Always show
+            end,
+
+            "SaveManager_ImportConfig",
+            "Import config",
+            "Are you sure you want to import this configuration? Your current settings will be overwritten.",
+
+            "Import",
+            function()
+                local Success, ErrorMessage = SaveManager:LoadJSON(ConfigJSON)
+                if not Success then
+                    SaveManager.Library:Notify(string.format("Failed to import config: %s", ErrorMessage))
+                    return
+                end
+
+                SaveManager.Library:Notify("Successfully imported config")
+            end
+        )
+    end)
+
+    ConfigurationBox:AddButton("Export current config", function()
+        local EncodedData, Success, ErrorMessage = SaveManager:SaveJSON()
+        if not Success  then
+            SaveManager.Library:Notify(ErrorMessage)
+            return
+        end
+
+        ConfigJSONInput:SetValue(EncodedData)
+        if setclipboard then
+            setclipboard(EncodedData)
+            SaveManager.Library:Notify("Copied config to your clipboard")
+        end
+    end)
+
     --// Set variables
-    ConfigNameInput, ConfigList = 
+    ConfigNameInput, ConfigList, ConfigJSONInput =
         SaveManager.Library.Options.SaveManager_ConfigName, 
-        SaveManager.Library.Options.SaveManager_ConfigList;
+        SaveManager.Library.Options.SaveManager_ConfigList,
+        SaveManager.Library.Options.SaveManager_JSON;
 
     --// Refresh
     RefreshAutoloadConfigLabel()
-    SaveManager:SetIgnoreIndexes({ "SaveManager_ConfigList", "SaveManager_ConfigName" })
+    SaveManager:SetIgnoreIndexes({ "SaveManager_ConfigList", "SaveManager_ConfigName", "SaveManager_JSON" })
 
     return ConfigurationBox
 end

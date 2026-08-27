@@ -19,6 +19,7 @@ local Window = Library:CreateWindow({
 	-- Set Resizable to true if you want to have in-game resizable Window
 	-- Set MobileButtonsSide to "Left" or "Right" if you want the ui toggle & lock buttons to be on the left or right side of the window
 	-- Set ShowCustomCursor to false if you don't want to use the Linoria cursor
+	-- Set AlwaysOnTop to true if you want the menu to render above Roblox core blur (executor only)
 	-- NotifySide = Changes the side of the notifications (Left, Right) (Default value = Left)
 	-- Position and Size are also valid options here
 	-- but you do not need to define them unless you are changing them :)
@@ -111,7 +112,14 @@ UISettingsTab:UpdateWarningBox({
 
 -- Groupbox and Tabbox inherit the same functions
 -- except Tabboxes you have to call the functions on a tab (Tabbox:AddTab(Name))
-local LeftGroupBox = Tabs.Main:AddLeftGroupbox("Groupbox", "boxes")
+local LeftGroupBox = Tabs.Main:AddGroupbox({
+	Side = "Left", --// (Case-insensitive),
+	Name = "Groupbox",
+	Description = "boxes",
+	IconName = "boxes",
+	-- Collapsed = false,
+	-- DisableCollapsing = false,
+})
 
 -- We can also get our Main tab via the following code:
 -- local LeftGroupBox = Window.Tabs.Main:AddLeftGroupbox("Groupbox", "boxes")
@@ -470,7 +478,10 @@ end)
 -- Groupbox:AddDropdown
 -- Arguments: Idx, Info
 
-local DropdownGroupBox = Tabs.Main:AddRightGroupbox("Dropdowns")
+local DropdownGroupBox = Tabs.Main:AddGroupbox({
+	Side = "Right",
+	Name = "Dropdowns",
+})
 
 DropdownGroupBox:AddDropdown("MyDropdown", {
 	Values = { "This", "is", "a", "dropdown" },
@@ -610,6 +621,36 @@ DropdownGroupBox:AddDropdown("MyMultiDropdown", {
 Options.MyMultiDropdown:SetValue({
 	This = true,
 	is = true,
+})
+
+--[[
+	Dictionary Values (key = identity, value = display label)
+
+	Use this when you need stable backend IDs in .Value and OnChanged while showing
+	human-readable labels in the UI. Multi dropdowns still store { [key] = true }.
+]]
+DropdownGroupBox:AddDropdown("MyDictionaryDropdown", {
+	Values = {
+		item01 = "Excalibur",
+		item05 = "Aegis Shield",
+		item06 = "Wooden Club",
+	},
+	Default = "item01", -- must be a key, not the label
+	Multi = true,
+
+	Text = "A dictionary dropdown",
+	Tooltip = "Keys are selected; values are labels only",
+
+	-- DisabledValues and ValueImages may use either the key or the label
+	DisabledValues = { "item05" },
+
+	Callback = function(Value)
+		print("[cb] Dictionary dropdown got changed:")
+		for Key in Value do
+			local Label = Options.MyDictionaryDropdown.Values[Key]
+			print(Key, "->", Label)
+		end
+	end
 })
 
 DropdownGroupBox:AddDropdown("MyDisabledDropdown", {
@@ -809,7 +850,10 @@ LeftGroupBox:AddLabel("Press Keybind"):AddKeyPicker("KeyPicker2", {
 })
 
 -- Long text label to demonstrate UI scrolling behaviour.
-local LeftGroupBox2 = Tabs.Main:AddLeftGroupbox("Groupbox #2")
+local LeftGroupBox2 = Tabs.Main:AddGroupbox({
+	Side = "Left",
+	Name = "Groupbox #2",
+})
 LeftGroupBox2:AddLabel(
 	"This label spans multiple lines! We're gonna run out of UI space...\nJust kidding! Scroll down!\n\n\nHello from below!",
 	true
@@ -908,7 +952,11 @@ local Watermark = Library:AddWatermark({
 Watermark.RefreshRate = 1
 
 -- UI Settings
-local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu", "wrench")
+local MenuGroup = Tabs["UI Settings"]:AddGroupbox({
+	Side = "Left",
+	Name = "Menu",
+	IconName = "wrench"
+})
 
 MenuGroup:AddToggle("KeybindMenuOpen", {
 	Default = Library.KeybindFrame.Visible,
@@ -924,39 +972,13 @@ MenuGroup:AddToggle("ShowCustomCursor", {
 		Library.ShowCustomCursor = Value
 	end,
 })
-
--- Notification History (built-in): every Library:Notify is logged automatically,
--- toggle the panel with RightAlt or Library:ToggleNotificationHistory()
-MenuGroup:AddButton("Test Notification", function()
-	Library:Notify({
-		Title = "Test Notification",
-		Description = "Fired at " .. os.date("%H:%M:%S") .. " - open the history with RightAlt!",
-		Time = 4,
-	})
-end)
-
--- Type colors the primary text: "Error", "Warning", "Success", "Info"
-MenuGroup:AddDropdown("NotifyTypeTest", {
-	Values = { "Error", "Warning", "Success", "Info" },
-	Default = "Error",
-	Text = "Test Typed Notification",
+MenuGroup:AddToggle("AlwaysOnTop", {
+	Text = "Always On Top",
+	Default = Window.AlwaysOnTop,
 	Callback = function(Value)
-		Library:Notify({
-			Title = Value .. " Notification",
-			Description = "This is a " .. Value:lower() .. " message.",
-			Type = Value,
-			Time = 4,
-		})
+		Window:SetAlwaysOnTop(Value)
 	end,
 })
-
-MenuGroup:AddButton("Toggle Notification History", function()
-	Library:ToggleNotificationHistory()
-end)
-
-MenuGroup:AddButton("Clear Notification History", function()
-	Library:ClearNotificationHistory()
-end)
 MenuGroup:AddDropdown("NotificationSide", {
 	Values = { "Left", "Right" },
 	Default = "Right",

@@ -1,85 +1,81 @@
-## 27.08.2026
-
-```diff
-[features]
-+ Revamped watermark: Library:AddWatermark(Segments) builds a segmented status bar - each segment is an icon + label, split by thin dividers, on a rounded draggable bar
-+ Segments are { Text, Icon?, Accent? } (or a plain string); Accent = true tints the icon and text with the theme accent (use it for the title segment)
-+ A segment's Text may be a function returning a string (e.g. identifyexecutor, ping, clock) - it auto-refreshes every Watermark.RefreshRate seconds (default 1)
-+ Methods: SetSegments (rebuild), SetText(Index, Text) (live-update one segment), Refresh (re-evaluate function segments now), SetVisible, Destroy
-+ Library.Watermark is the default instance; Library:SetWatermark / :SetWatermarkVisibility drive it and are no longer deprecated
-```
-
 ## 25.08.2026
 
 ```diff
 [features]
-+ New element: player cards - an avatar thumbnail with a title and description lines (both rich text)
-+ Tab:AddPlayerInfo(Idx, Info) is the full card: a full-width banner across the top of the tab, above both columns and under the warning box
-+ Groupbox:AddPlayerInfo(Idx, Info) is the compact card: an avatar box with no header of its own, so the groupbox around it carries the title and the collapse
-+ Defaults to the local player; Player, UserId, Thumbnail and ThumbnailType ("HeadShot" | "Bust" | "Avatar") override it
-+ Methods: SetTitle, SetDescription, SetPlayer, SetUserId, SetThumbnail, SetHeight, SetCollapsed, SetVisible, Destroy
-
-
-+ Player card descriptions accept dividers between lines: "---" or { Divider = true } draws a thin rule (full card; the compact card shows the avatar alone)
++ Library:ApplyLucideIcon(ImageGui: ImageLabel | ImageButton, Icon: LucideIcon, Rotation: number?)
++ Groupbox/Tabbox pop-out into draggable element (enabled by default)
++ Tabbox and Groupbox :SetPoppedOut, :TogglePoppedOut
++ Fuzzy matching for sidebar and dropdown search
++ Window snapping to screen edges/center (Snapping, SnapAvoidCoreGui, SnapDistance, SnapMargin)
++ Window:SetSnapping(Enabled, Distance?, Margin?)
++ Automatic WCAG contrast checking for themes
 
 [changes]
-+ TabSwipeFrom now only applies to normal tabs; sub tab content always swipes in from the bottom
-```
-
-## 09.08.2026
-
-```diff
-[fixes]
-+ Notification History no longer duplicates its "No notifications yet." placeholder on refresh
-+ Fixed the history panel rendering off-screen
-+ Corner radius now reliably re-applies to keybind pills and other corners after the radius passes through 0 (each corner remembers its square/half/full ratio instead of getting stuck)
-
-[features]
-+ Built-in Notification History: every Library:Notify call is logged automatically, no manual hooking needed
-+ History panel drops down from under the notification bell with a smooth slide + fade, and retracts back into it on close
-+ X button in the panel's title bar
-+ Notify Type ("Error" | "Warning" | "Success" | "Info") colors the primary text and shows a colored tag in history; customizable via Library.NotificationTypeColors
-+ Click a notification in the history to copy its text: clipboard icon swaps to a check and a "Copied!" tag flashes in as feedback
-+ Clicking outside the history panel now closes it
-+ New "Enabled Features" top-bar button: opens a smooth, organized panel listing every element changed from its default (only altered values appear), each with an inline control to tweak it
-+ Enabled Features supports toggles (switch), sliders (draggable), inputs (text box) and dropdowns (single-select cycles), plus a reset-to-default button per row
-+ Copy feedback now uses a copy/paste icon that pops in with a bounce and swaps to a checkmark, with a rising "Copied!" tag
-+ Added themes: Linoria, Hollywood Novo, Rose Pine, V3rmillion, Sakura Drift
-+ The Notification and Enabled Features buttons (with the unread badge) now also appear in the minimized window card, and their panels drop from whichever button is on screen
-+ Toggle the history panel with the RightAlt keybind (Library.NotificationHistoryKeybind) or Library:ToggleNotificationHistory()
-+ Draggable panel lists each notification's timestamp, title and description, newest first
-+ Notification bell icon in the top bar (left of the minimize/move icons) with an unread count badge; click it to open the history
-+ Opening the history clears the unread badge
-+ Library.NotificationHistory, Library.NotificationHistoryLimit (default 100), Library.NotificationUnreadCount, Library:GetNotificationHistory(), Library:ClearNotificationHistory(), Library:RefreshNotificationHistory(), Library:SetNotificationHistoryVisible(bool), Library:UpdateNotificationBadge()
-```
-
-## 05.08.2026
-
-```diff
-[features]
-+ Built in "Select All" / "Deselect All" row on multi dropdowns, in the inline list and the expanded panel
-+ It skips disabled values and, while a search is typed, only touches the matching ones
-+ Dropdown:SelectAll(Search?), Dropdown:DeselectAll(Search?), DropdownInfo.SelectAllButtons
-```
-
-## 04.08.2026
-
-```diff
-[features]
-+ Search v2 with fuzzy subsequence matching, Dropdown/Input/KeyPicker value search, and groupbox/tabbox/sub-tab name matching
-+ Ctrl+F now focuses the searchbar; Escape clears it and releases focus
-+ Library.FuzzySearch, Library.SearchValues, WindowInfo.FuzzySearch, WindowInfo.SearchValues, WindowInfo.SearchKeybind, WindowInfo.DisableSearchKeybind
-+ Minimize the window to a card with title, subtitle, labels and footer; button sits beside the move icon
-+ The card is built into the window and needs no setup: its subtitle tracks the open tab and its footer mirrors the window footer
-+ Sub tabs are now one feature with two views shown at once: the button row above the groupboxes and a collapsible list nested under the tab in the sidebar
-+ Both are painted from the same SubTab:Show/Hide, so switching in either drives the other
-+ Tab:SetExpanded/ToggleExpanded/IsExpanded, Animations.SidebarSubTabs
-+ Window:SetMinimized/ToggleMinimized/IsMinimized, SetMinimizedSubtitle, AddMinimizedLabel, ClearMinimizedLabels
-+ WindowInfo.Minimizable, MinimizeKeybind, MinimizedWidth, MinimizedSubtitle
++ Dropdown search results are sorted by best match
++ Matching a Tab/Groupbox name in search reveals all of its contents
++ ZIndex changed to Siblings mode
++ Increased the maximum width for Button KeyPickers
++ Escape dismisses open menus/dialogs and releases text input focus (without toggling the window)
++ AccentColor focus-border tween applied to all text inputs
++ Hover feedback on KeyBox Execute and KeyPicker key display buttons
 
 [fixes]
-+ Search queries are now matched as literal text instead of Lua patterns
-+ Dropdown value filtering also treated its query as a Lua pattern
++ Fixed Tab:SetOrder()
++ Fixed Dropdown:SetValueImages()
++ Fixed KeyPicker sliding animation sometimes causing errors
++ Fixed Button KeyPickers not resizing properly to fit the text
++ Fixed mouse icon state not reverting properly
++ Fixed corner radiuses not properly changing with Dropdowns, KeyPickers, ColorPickers and certain Context Menus
+```
+
+## 23.08.2026
+
+```diff
+[features]
++ Import/Export Theme and Configuration JSON through the UI
+```
+
+## 20.08.2026
+
+```diff
+[features]
++ Groupbox Descriptions, Groupbox:SetDescription()
+
+[changes]
++ :AddLeftGroupbox(...) and :AddRightGroupbox(...) are now deprecated; use :AddGroupbox({ ... }) instead
+```
+
+## 17.08.2026
+
+```diff
+[features]
++ ColorPicker.Resizable
++ Window.AlwaysOnTop, Window:SetAlwaysOnTop, Loading.AlwaysOnTop
+
+[changes]
++ TextBox focus now tweens the border between OutlineColor and AccentColor
++ Added Hover highlights on Dropdown items, KeyPicker mode-select buttons, and ColorPicker context menu items
+
+[fixes]
++ Implemented MinContainerWidth properly
+```
+
+## 12.08.2026
+
+```diff
+[features]
++ Large dropdown lists are now virtualized for faster opens and lower instance count
++ Dropdowns no longer crash the game with over 10,000 values
++ Dictionary Values support: key = selection identity, value = display label
++ Dropdown:SetValues now prunes stale selections that are no longer in Values
+
+[changes]
++ Dropdown.DisabledValues and Dropdown.ValueImages now accept dictionary keys or labels
++ Dropdown:AddValues on dictionary Values merges maps (or key=label for arrays)
++ Sparse numeric tables are treated as arrays (value identity), not dictionaries
+
+[fixes]
++ Multi-dropdown dictionary keys no longer stripped to display labels (Issue #109)
 ```
 
 ## 11.07.2026
