@@ -15557,6 +15557,9 @@ function Library:CreateWindow(WindowInfo)
         function Tab:AddGroupbox(Info)
             Info = Library:Validate(Info, Templates.Groupbox)
 
+            --// Owner is the tab-like object this groupbox belongs to (Tab or SubTab)
+            local Owner = self or Tab
+
             if typeof(Info.Side) == "string" then
                 local lowerSide = string.lower(Info.Side)
                 if not SideIndex[lowerSide] then
@@ -15729,8 +15732,6 @@ function Library:CreateWindow(WindowInfo)
 
             local Groupbox: any = {
                 Type = "Groupbox",
-                Name = Info.Name,
-
                 Name = Info.Name,
                 Description = Info.Description,
 
