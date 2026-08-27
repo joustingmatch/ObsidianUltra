@@ -2703,19 +2703,199 @@ function Library:AddDraggableImageButton(...)
     return DraggableImageButton
 end
 
---// Watermark - Deprecated \\--
+--// Watermark \\--
+function Library:AddWatermark(Segments: { any }?)
+    local Watermark = {
+        Connections = {},
+        Destroyed = false,
+        Cells = {},
+    }
+
+    local Holder = New("Frame", {
+        AnchorPoint = Vector2.zero,
+        AutomaticSize = Enum.AutomaticSize.XY,
+        BackgroundColor3 = "BackgroundColor",
+        Position = UDim2.fromOffset(6, 6),
+        Size = UDim2.fromOffset(0, 0),
+        ZIndex = 10,
+        Parent = ScreenGui,
+    })
+
+    table.insert(
+        Library.Corners,
+        New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius),
+            Parent = Holder,
+        })
+    )
+
+    New("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = Holder,
+    })
+
+    New("UIPadding", {
+        PaddingLeft = UDim.new(0, 3),
+        PaddingRight = UDim.new(0, 3),
+        PaddingTop = UDim.new(0, 3),
+        PaddingBottom = UDim.new(0, 3),
+        Parent = Holder,
+    })
+
+    table.insert(
+        Library.Scales,
+        New("UIScale", {
+            Parent = Holder,
+        })
+    )
+
+    Library:AddOutline(Holder)
+    Library:MakeDraggable(Holder, Holder, true)
+
+    Watermark.Holder = Holder
+
+    local function BuildCell(Data: any, Order: number)
+        local Cell = {}
+
+        if Order > 1 then
+            New("Frame", {
+                BackgroundColor3 = "OutlineColor",
+                BorderSizePixel = 0,
+                LayoutOrder = Order * 2 - 1,
+                Size = UDim2.fromOffset(1, 14),
+                ZIndex = 11,
+                Parent = Holder,
+            })
+        end
+
+        local Frame = New("Frame", {
+            AutomaticSize = Enum.AutomaticSize.XY,
+            BackgroundTransparency = 1,
+            LayoutOrder = Order * 2,
+            Size = UDim2.fromOffset(0, 20),
+            ZIndex = 11,
+            Parent = Holder,
+        })
+
+        New("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            VerticalAlignment = Enum.VerticalAlignment.Center,
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding = UDim.new(0, 5),
+            Parent = Frame,
+        })
+
+        New("UIPadding", {
+            PaddingLeft = UDim.new(0, 8),
+            PaddingRight = UDim.new(0, 8),
+            Parent = Frame,
+        })
+
+        local UseAccent = Data.Accent == true
+        local CustomIcon = Data.Icon and Trim(tostring(Data.Icon)) ~= "" and Library:GetCustomIcon(Data.Icon)
+        if CustomIcon then
+            New("ImageLabel", {
+                BackgroundTransparency = 1,
+                Image = CustomIcon.Url,
+                ImageColor3 = UseAccent and "AccentColor" or "FontColor",
+                ImageRectOffset = CustomIcon.ImageRectOffset,
+                ImageRectSize = CustomIcon.ImageRectSize,
+                LayoutOrder = 1,
+                Size = UDim2.fromOffset(15, 15),
+                ZIndex = 12,
+                Parent = Frame,
+            })
+        end
+
+        local TextLabel = New("TextLabel", {
+            AutomaticSize = Enum.AutomaticSize.XY,
+            BackgroundTransparency = 1,
+            LayoutOrder = 2,
+            Size = UDim2.fromOffset(0, 20),
+            Text = Data.Text or "",
+            TextColor3 = UseAccent and "AccentColor" or "FontColor",
+            TextSize = 15,
+            TextYAlignment = Enum.TextYAlignment.Center,
+            ZIndex = 12,
+            Parent = Frame,
+        })
+
+        Cell.Frame = Frame
+        Cell.Label = TextLabel
+        return Cell
+    end
+
+    function Watermark:SetSegments(NewSegments: { any })
+        for _, Cell in Watermark.Cells do
+            if Cell.Frame then Cell.Frame:Destroy() end
+        end
+        table.clear(Watermark.Cells)
+
+        -- clear stray dividers left behind
+        for _, Child in Holder:GetChildren() do
+            if Child:IsA("Frame") and Child.Size == UDim2.fromOffset(1, 14) then
+                Child:Destroy()
+            end
+        end
+
+        for Index, Data in NewSegments do
+            local Segment = typeof(Data) == "table" and Data or { Text = tostring(Data) }
+            Watermark.Cells[Index] = BuildCell(Segment, Index)
+        end
+    end
+
+    function Watermark:SetText(Index: number, Text: string)
+        local Cell = Watermark.Cells[Index]
+        if Cell and Cell.Label then
+            Cell.Label.Text = Text
+        end
+    end
+
+    function Watermark:SetVisible(Visible: boolean)
+        Holder.Visible = Visible
+    end
+
+    function Watermark:Destroy()
+        Watermark.Destroyed = true
+
+        for _, connection in Watermark.Connections do
+            connection:Disconnect()
+        end
+
+        local ElemIdx = table.find(Library.DraggableElements, Holder)
+        if ElemIdx then
+            table.remove(Library.DraggableElements, ElemIdx)
+        end
+
+        if Holder then
+            Holder:Destroy()
+        end
+    end
+
+    if not table.find(Library.DraggableElements, Holder) then
+        table.insert(Library.DraggableElements, Holder)
+    end
+
+    Watermark:SetSegments(Segments or {})
+    PositionDraggable(Holder, Holder.Position)
+
+    return Watermark
+end
+
+--// Watermark - Backwards Compatibility \\--
 do
-    local WatermarkLabel = Library:AddDraggableLabel("")
-    WatermarkLabel:SetVisible(false)
+    local DefaultWatermark = Library:AddWatermark()
+    DefaultWatermark:SetVisible(false)
+    Library.Watermark = DefaultWatermark
 
     function Library:SetWatermark(Text: string)
-        warn("Watermark is deprecated, please use Library:AddDraggableLabel instead.")
-        WatermarkLabel:SetText(Text)
+        DefaultWatermark:SetSegments({ { Text = Text } })
     end
 
     function Library:SetWatermarkVisibility(Visible: boolean)
-        warn("Watermark is deprecated, please use Library:AddDraggableLabel instead.")
-        WatermarkLabel:SetVisible(Visible)
+        DefaultWatermark:SetVisible(Visible)
     end
 end
 

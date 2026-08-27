@@ -120,6 +120,21 @@ export type DraggableLabel = {
     SetIconPosition: (self: DraggableLabel, Position: string) -> (),
 }
 
+export type WatermarkSegment = {
+    Text: string?,
+    Icon: string?,
+    Accent: boolean?,
+}
+
+export type Watermark = {
+    Holder: Frame,
+    Cells: { any },
+    SetSegments: (self: Watermark, Segments: { WatermarkSegment | string }) -> (),
+    SetText: (self: Watermark, Index: number, Text: string) -> (),
+    SetVisible: (self: Watermark, Visible: boolean) -> (),
+    Destroy: (self: Watermark) -> (),
+}
+
 export type DraggableButton = {
     Button: TextButton,
     SetText: (self: DraggableButton, Text: string) -> (),
@@ -1208,6 +1223,8 @@ export type Library = {
         ExcludeDragging: boolean?
     ) -> DraggableImageButton,
     AddDraggableMenu: (self: Library, Name: string) -> (Frame, Frame),
+    AddWatermark: (self: Library, Segments: { WatermarkSegment | string }?) -> Watermark,
+    Watermark: Watermark,
     SetWatermarkVisibility: (self: Library, Visible: boolean) -> (),
     SetWatermark: (self: Library, Text: string) -> (),
     AddContextMenu: (

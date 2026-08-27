@@ -879,6 +879,45 @@ end)
 
 Library:AddDraggableLabel("This is a Draggable Label")
 
+-- Watermark (segmented status bar)
+
+local Watermark = Library:AddWatermark({
+	{ Icon = "flame", Text = "Watermark", Accent = true },
+	{ Icon = "user", Text = Library.LocalPlayer.Name },
+	{ Icon = "timer", Text = "0m00s" },
+	{ Icon = "activity", Text = "0 fps" },
+	{ Icon = "wifi", Text = "0 ms" },
+	{ Icon = "clock", Text = "00:00" },
+})
+
+do
+	local RunService = game:GetService("RunService")
+	local Stats = game:GetService("Stats")
+
+	local StartTime = os.clock()
+	local FrameCount, FrameTime, Fps = 0, 0, 0
+
+	Watermark.Connections[#Watermark.Connections + 1] = RunService.RenderStepped:Connect(function(dt)
+		FrameCount += 1
+		FrameTime += dt
+		if FrameTime >= 0.5 then
+			Fps = math.floor(FrameCount / FrameTime + 0.5)
+			FrameCount, FrameTime = 0, 0
+		end
+
+		local Elapsed = os.clock() - StartTime
+		Watermark:SetText(3, string.format("%dm%02ds", Elapsed // 60, Elapsed % 60))
+		Watermark:SetText(4, string.format("%d fps", Fps))
+
+		local Ping = 0
+		pcall(function()
+			Ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue() + 0.5)
+		end)
+		Watermark:SetText(5, string.format("%d ms", Ping))
+		Watermark:SetText(6, os.date("%H:%M"))
+	end)
+end
+
 -- UI Settings
 local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu", "wrench")
 
