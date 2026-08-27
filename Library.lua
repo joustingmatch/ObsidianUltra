@@ -14770,9 +14770,13 @@ function Library:CreateWindow(WindowInfo)
 
         Icon = Library:GetCustomIcon(Icon)
         do
+            --// Per-tab wrapper: holds the tab button and, if sub tabs are added,
+            --// their nested sidebar list. Order is applied here so the whole group
+            --// (button + sub tabs) moves together and the list stays under its tab.
             TabHolder = New("Frame", {
                 AutomaticSize = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
+                LayoutOrder = Order,
                 Size = UDim2.new(1, 0, 0, 0),
                 Parent = Tabs,
             })
@@ -14787,8 +14791,7 @@ function Library:CreateWindow(WindowInfo)
                 LayoutOrder = 0,
                 Size = UDim2.new(1, 0, 0, 40),
                 Text = "",
-                LayoutOrder = Order,
-                Parent = Tabs,
+                Parent = TabHolder,
             })
             local ButtonPadding = New("UIPadding", {
                 PaddingBottom = UDim.new(0, IsCompact and 6 or 11),
@@ -17005,7 +17008,8 @@ function Library:CreateWindow(WindowInfo)
 
         function Tab:SetOrder(NewOrder: number)
             Order = NewOrder
-            TabButton.LayoutOrder = Order
+            --// Order lives on the wrapper so the tab's sub-tab list moves with it
+            TabHolder.LayoutOrder = Order
         end
 
         function Tab:Destroy()
