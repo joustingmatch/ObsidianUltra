@@ -8937,6 +8937,9 @@ do
         --// Select All / Deselect All + expanded panel state (fork additions layered
         --// on top of upstream's pooled inline list)
         local UseSelectAll = Info.Multi and Info.SelectAllButtons ~= false
+        --// Space reserved at the top of the virtualized canvas for the inline
+        --// Select All / Deselect All row (scrolls with the values, like upstream)
+        local HeaderOffset = UseSelectAll and ItemHeight or 0
         local ExpandedButtons = {}
         local RebuildExpandedList
 
@@ -9036,9 +9039,9 @@ do
 
         function Dropdown:RecalculateListSize(Count)
             local ItemCount = Count or #FilteredEntries
-            local Y = math.clamp(ItemCount * ItemHeight, 0, Info.MaxVisibleDropdownItems * ItemHeight)
+            local Y = math.clamp(ItemCount * ItemHeight + HeaderOffset, 0, Info.MaxVisibleDropdownItems * ItemHeight + HeaderOffset)
 
-            MenuTable.Menu.CanvasSize = UDim2.fromOffset(0, ItemCount * ItemHeight)
+            MenuTable.Menu.CanvasSize = UDim2.fromOffset(0, ItemCount * ItemHeight + HeaderOffset)
 
             MenuTable:SetSize(function()
                 return UDim2.fromOffset((DisplayContainer.AbsoluteSize.X / Library.DPIScale), Y)
@@ -9229,7 +9232,7 @@ do
 
             local MaxFirst = Total - PoolSize + 1
             local ScrollY = MenuTable.Menu.CanvasPosition.Y / Library.DPIScale
-            local Index = math.floor(ScrollY / ItemHeight) + 1
+            local Index = math.floor(math.max(0, ScrollY - HeaderOffset) / ItemHeight) + 1
             return math.clamp(Index, 1, MaxFirst)
         end
 
@@ -9250,7 +9253,7 @@ do
                 end
 
                 Row.Container.Visible = true
-                Row.Container.Position = UDim2.fromOffset(0, (DataIndex - 1) * ItemHeight)
+                Row.Container.Position = UDim2.fromOffset(0, (DataIndex - 1) * ItemHeight + HeaderOffset)
 
                 local IsLast = DataIndex == Total
                 Row.Corner.BottomRightRadius = IsLast and UDim.new(0, Library.CornerRadius / 2) or UDim.new(0, 0)
@@ -9596,6 +9599,47 @@ do
 
         for _ = 1, PoolSize do
             table.insert(Pool, CreatePoolRow())
+        end
+
+        --// Inline "Select All" / "Deselect All" row, pinned at the top of the
+        --// canvas so it scrolls with the values. Created once and reused.
+        if UseSelectAll then
+            local SelectAllRow = New("Frame", {
+                BackgroundTransparency = 1,
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.new(1, 0, 0, ItemHeight),
+                Parent = MenuTable.Menu,
+            })
+            Library:MakeLine(SelectAllRow, {
+                AnchorPoint = Vector2.new(0, 1),
+                Position = UDim2.fromScale(0, 1),
+                Size = UDim2.new(1, 0, 0, 1),
+            })
+
+            local function MakeBulkButton(Text, Offset, State)
+                local Button = New("TextButton", {
+                    BackgroundTransparency = 1,
+                    Position = UDim2.fromScale(Offset, 0),
+                    Size = UDim2.new(0.5, 0, 1, 0),
+                    Text = Text,
+                    TextSize = 14,
+                    TextTransparency = 0.5,
+                    Parent = SelectAllRow,
+                })
+
+                Button.MouseEnter:Connect(function()
+                    TweenService:Create(Button, Library.TweenInfo, { TextTransparency = 0 }):Play()
+                end)
+                Button.MouseLeave:Connect(function()
+                    TweenService:Create(Button, Library.TweenInfo, { TextTransparency = 0.5 }):Play()
+                end)
+                Button.MouseButton1Click:Connect(function()
+                    ApplyBulkSelection(State, SearchBox and SearchBox.Text:lower() or nil)
+                end)
+            end
+
+            MakeBulkButton("Select All", 0, true)
+            MakeBulkButton("Deselect All", 0.5, false)
         end
 
         table.insert(Dropdown.Connections, MenuTable.Menu:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
