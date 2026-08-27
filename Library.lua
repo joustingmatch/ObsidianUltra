@@ -14985,6 +14985,10 @@ function Library:CreateWindow(WindowInfo)
             Groupboxes = {},
             Tabboxes = {},
             DependencyGroupboxes = {},
+
+            Type = "Tab",
+            SubTabs = {},
+            ActiveSubTab = nil,
         }
 
         --// Warning Box \\--
