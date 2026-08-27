@@ -13432,10 +13432,13 @@ function Library:CreateWindow(WindowInfo)
         local SearchIcon = Library:GetIcon("search")
         if SearchIcon then
             local SearchIconImage = New("ImageLabel", {
+                AnchorPoint = Vector2.new(0, 0.5),
                 ImageColor3 = "FontColor",
                 ImageTransparency = 0.5,
-                Size = UDim2.fromScale(1, 1),
-                SizeConstraint = Enum.SizeConstraint.RelativeYY,
+                --// Sits in the padding the text was pushed out of, so it does not
+                --// overlap the placeholder (the box's UIPadding also insets children)
+                Position = UDim2.new(0, -(SEARCHBOX_TEXT_INSET - 14), 0.5, 0),
+                Size = UDim2.fromOffset(16, 16),
                 Parent = SearchBox,
             })
             Library:ApplyLucideIcon(SearchIconImage, SearchIcon)
