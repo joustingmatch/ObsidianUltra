@@ -15573,7 +15573,9 @@ function Library:CreateWindow(WindowInfo)
                 AutomaticSize = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
                 Size = UDim2.fromScale(1, 0),
-                Parent = (Info.Side == 1) and TabLeft or TabRight,
+                --// Owner.Sides routes to the tab's columns for a Tab, or the
+                --// sub-tab's own columns for a SubTab (upstream hardcoded TabLeft/Right)
+                Parent = (Info.Side == 1) and Owner.Sides[1] or Owner.Sides[2],
             })
             New("UIListLayout", {
                 Padding = UDim.new(0, 6),
