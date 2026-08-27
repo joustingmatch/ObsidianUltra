@@ -880,43 +880,32 @@ end)
 Library:AddDraggableLabel("This is a Draggable Label")
 
 -- Watermark (segmented status bar)
+-- A segment's Text can be a plain string, or a function that returns a string.
+-- Function segments auto-refresh every Watermark.RefreshRate seconds (default 1),
+-- so anything like an executor check, ping, or clock stays live on its own.
+
+local Stats = game:GetService("Stats")
 
 local Watermark = Library:AddWatermark({
 	{ Icon = "flame", Text = "Watermark", Accent = true },
+	{ Icon = "cpu", Text = function()
+		return (identifyexecutor and identifyexecutor()) or "Unknown"
+	end },
 	{ Icon = "user", Text = Library.LocalPlayer.Name },
-	{ Icon = "timer", Text = "0m00s" },
-	{ Icon = "activity", Text = "0 fps" },
-	{ Icon = "wifi", Text = "0 ms" },
-	{ Icon = "clock", Text = "00:00" },
-})
-
-do
-	local RunService = game:GetService("RunService")
-	local Stats = game:GetService("Stats")
-
-	local StartTime = os.clock()
-	local FrameCount, FrameTime, Fps = 0, 0, 0
-
-	Watermark.Connections[#Watermark.Connections + 1] = RunService.RenderStepped:Connect(function(dt)
-		FrameCount += 1
-		FrameTime += dt
-		if FrameTime >= 0.5 then
-			Fps = math.floor(FrameCount / FrameTime + 0.5)
-			FrameCount, FrameTime = 0, 0
-		end
-
-		local Elapsed = os.clock() - StartTime
-		Watermark:SetText(3, string.format("%dm%02ds", Elapsed // 60, Elapsed % 60))
-		Watermark:SetText(4, string.format("%d fps", Fps))
-
+	{ Icon = "wifi", Text = function()
 		local Ping = 0
 		pcall(function()
 			Ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue() + 0.5)
 		end)
-		Watermark:SetText(5, string.format("%d ms", Ping))
-		Watermark:SetText(6, os.date("%H:%M"))
-	end)
-end
+		return string.format("%d ms", Ping)
+	end },
+	{ Icon = "clock", Text = function()
+		return os.date("%H:%M")
+	end },
+})
+
+-- Update the refresh cadence if you want function segments to tick faster/slower.
+Watermark.RefreshRate = 1
 
 -- UI Settings
 local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu", "wrench")

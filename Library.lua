@@ -2809,12 +2809,15 @@ function Library:AddWatermark(Segments: { any }?)
             })
         end
 
+        local Getter = typeof(Data.Text) == "function" and Data.Text or nil
+        local InitialText = Getter and select(2, pcall(Getter)) or Data.Text
+
         local TextLabel = New("TextLabel", {
             AutomaticSize = Enum.AutomaticSize.XY,
             BackgroundTransparency = 1,
             LayoutOrder = 2,
             Size = UDim2.fromOffset(0, 20),
-            Text = Data.Text or "",
+            Text = typeof(InitialText) == "string" and InitialText or "",
             TextColor3 = UseAccent and "AccentColor" or "FontColor",
             TextSize = 15,
             TextYAlignment = Enum.TextYAlignment.Center,
@@ -2824,7 +2827,19 @@ function Library:AddWatermark(Segments: { any }?)
 
         Cell.Frame = Frame
         Cell.Label = TextLabel
+        Cell.Getter = Getter
         return Cell
+    end
+
+    function Watermark:Refresh()
+        for _, Cell in Watermark.Cells do
+            if Cell.Getter and Cell.Label then
+                local Ok, Value = pcall(Cell.Getter)
+                if Ok and typeof(Value) == "string" then
+                    Cell.Label.Text = Value
+                end
+            end
+        end
     end
 
     function Watermark:SetSegments(NewSegments: { any })
@@ -2880,6 +2895,24 @@ function Library:AddWatermark(Segments: { any }?)
 
     Watermark:SetSegments(Segments or {})
     PositionDraggable(Holder, Holder.Position)
+
+    -- Auto-refresh any function-valued segments every Watermark.RefreshRate seconds.
+    Watermark.RefreshRate = 1
+    local Accumulator = 0
+    table.insert(
+        Watermark.Connections,
+        RunService.Heartbeat:Connect(function(DeltaTime)
+            if Watermark.Destroyed or not Holder.Visible then
+                return
+            end
+
+            Accumulator += DeltaTime
+            if Accumulator >= Watermark.RefreshRate then
+                Accumulator = 0
+                Watermark:Refresh()
+            end
+        end)
+    )
 
     return Watermark
 end

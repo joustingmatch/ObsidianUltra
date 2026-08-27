@@ -4,7 +4,8 @@
 [features]
 + Revamped watermark: Library:AddWatermark(Segments) builds a segmented status bar - each segment is an icon + label, split by thin dividers, on a rounded draggable bar
 + Segments are { Text, Icon?, Accent? } (or a plain string); Accent = true tints the icon and text with the theme accent (use it for the title segment)
-+ Methods: SetSegments (rebuild), SetText(Index, Text) (live-update one segment, e.g. fps/ping/time), SetVisible, Destroy
++ A segment's Text may be a function returning a string (e.g. identifyexecutor, ping, clock) - it auto-refreshes every Watermark.RefreshRate seconds (default 1)
++ Methods: SetSegments (rebuild), SetText(Index, Text) (live-update one segment), Refresh (re-evaluate function segments now), SetVisible, Destroy
 + Library.Watermark is the default instance; Library:SetWatermark / :SetWatermarkVisibility drive it and are no longer deprecated
 ```
 

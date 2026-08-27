@@ -121,7 +121,7 @@ export type DraggableLabel = {
 }
 
 export type WatermarkSegment = {
-    Text: string?,
+    Text: (string | () -> string)?,
     Icon: string?,
     Accent: boolean?,
 }
@@ -129,9 +129,11 @@ export type WatermarkSegment = {
 export type Watermark = {
     Holder: Frame,
     Cells: { any },
+    RefreshRate: number,
     SetSegments: (self: Watermark, Segments: { WatermarkSegment | string }) -> (),
     SetText: (self: Watermark, Index: number, Text: string) -> (),
     SetVisible: (self: Watermark, Visible: boolean) -> (),
+    Refresh: (self: Watermark) -> (),
     Destroy: (self: Watermark) -> (),
 }
 
