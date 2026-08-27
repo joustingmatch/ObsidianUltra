@@ -1138,7 +1138,7 @@ local function ApplySearchToTab(Tab, Search)
 
         for _, ElementInfo in Groupbox.Elements do
             if ElementInfo.Type == "Divider" then
-                ElementInfo.Holder.Visible = BoxMatched and ElementInfo.Visible ~= false
+                ElementInfo.Holder.Visible = GroupboxMatches and ElementInfo.Visible ~= false
                 continue
             elseif ElementInfo.SubButton then
                 --// Check if any of the Buttons Name matches with Search
@@ -1201,7 +1201,7 @@ local function ApplySearchToTab(Tab, Search)
 
             for _, ElementInfo in SubTab.Elements do
                 if ElementInfo.Type == "Divider" then
-                    ElementInfo.Holder.Visible = BoxMatched and ElementInfo.Visible ~= false
+                    ElementInfo.Holder.Visible = SubTabMatches and ElementInfo.Visible ~= false
                     continue
                 elseif ElementInfo.SubButton then
                     --// Check if any of the Buttons Name matches with Search
@@ -1269,7 +1269,7 @@ local function ApplySearchToTab(Tab, Search)
 
         for _, SubTab in Tab.SubTabs do
             local SubVisible
-            if TextMatches(SubTab.Name, Search) then
+            if TryFuzzyMatch(SubTab.Name, Search) then
                 --// The Sub Tab itself is the hit, so show all of its contents
                 ResetTab(SubTab)
                 SubVisible = true
@@ -8934,6 +8934,106 @@ do
         local Pool = {}
         local FilteredEntries = {}
 
+        --// Select All / Deselect All + expanded panel state (fork additions layered
+        --// on top of upstream's pooled inline list)
+        local UseSelectAll = Info.Multi and Info.SelectAllButtons ~= false
+        local ExpandedButtons = {}
+        local RebuildExpandedList
+
+        local function IsValueSelected(Value)
+            if Info.Multi then
+                return Dropdown.Value[Value] == true
+            end
+
+            return Dropdown.Value == Value
+        end
+
+        --// Repaint both views: upstream's pooled inline rows and our expanded panel
+        local function RefreshButtons()
+            for _, Row in Pool do
+                Row:UpdateButton()
+            end
+            for _, Table in ExpandedButtons do
+                Table:UpdateButton()
+            end
+        end
+
+        --// Shared by the inline list and the expanded panel
+        local function ToggleValue(Value)
+            local Try = not IsValueSelected(Value)
+
+            --// Refuse to clear the last value unless null is allowed
+            if not (Dropdown:GetActiveValues(true) == 1 and not Try and not Info.AllowNull) then
+                if Info.Multi then
+                    Dropdown.Value[Value] = Try and true or nil
+                else
+                    Dropdown.Value = Try and Value or nil
+                end
+            end
+
+            RefreshButtons()
+            Dropdown:Display()
+
+            Library:UpdateDependencyBoxes()
+            Dropdown:RunChanged()
+        end
+
+        --// Every value the user could click right now, search filter included
+        local function GetSelectableValues(Search)
+            local Table = {}
+
+            for _, Value in Dropdown.Values do
+                if table.find(Dropdown.DisabledValues, Value) then
+                    continue
+                end
+
+                if Search and Search ~= "" then
+                    local FormattedValue = tostring(Info.FormatListValue and Info.FormatListValue(Value) or Value)
+                    if not TryFuzzyMatch(FormattedValue, Search:lower()) then
+                        continue
+                    end
+                end
+
+                table.insert(Table, Value)
+            end
+
+            return Table
+        end
+
+        local function ApplyBulkSelection(State, Search)
+            if not Info.Multi then
+                return
+            end
+
+            local Values = GetSelectableValues(Search)
+            if #Values == 0 then
+                return
+            end
+
+            for _, Value in Values do
+                Dropdown.Value[Value] = State or nil
+            end
+
+            --// Something has to stay picked when null is not allowed
+            if not State and not Info.AllowNull and Dropdown:GetActiveValues(true) == 0 then
+                Dropdown.Value[Values[1]] = true
+            end
+
+            RefreshButtons()
+            Dropdown:Display()
+
+            Library:UpdateDependencyBoxes()
+            Dropdown:RunChanged()
+        end
+
+        function Dropdown:SelectAll(Search)
+            ApplyBulkSelection(true, Search)
+        end
+
+        function Dropdown:DeselectAll(Search)
+            ApplyBulkSelection(false, Search)
+        end
+
         function Dropdown:RecalculateListSize(Count)
             local ItemCount = Count or #FilteredEntries
             local Y = math.clamp(ItemCount * ItemHeight, 0, Info.MaxVisibleDropdownItems * ItemHeight)
@@ -9979,7 +10079,7 @@ do
 
             for _, Value in Dropdown.Values do
                 local FormattedValue = tostring(Info.FormatListValue and Info.FormatListValue(Value) or Value)
-                if Search ~= "" and not TextMatches(FormattedValue, Search) then
+                if Search ~= "" and not TryFuzzyMatch(FormattedValue, Search) then
                     continue
                 end
 
@@ -13048,6 +13148,16 @@ function Library:CreateWindow(WindowInfo)
     local LastExpandedWidth = InitialLeftWidth
     local Minimized = false
     local ApplyWindowVisibility
+
+    --// Minimized card state (fork addition). Forward-declared here so the card
+    --// setup and the Window:AddMinimizedLabel/ClearMinimizedLabels methods share them.
+    local MiniFrame
+    local MiniSubtitle
+    local MiniBody
+    local MiniFooterHolder
+    local MiniFooter
+    local MiniLabels = {}
+    local MiniSubtitleExplicit = (WindowInfo.MinimizedSubtitle or "") ~= ""
     --// Extra room reserved at the right of the top bar for the notification bell,
     --// the enabled-features button and (when enabled) the minimize button, which
     --// sit beside the move icon rather than in the search row
@@ -14805,6 +14915,49 @@ function Library:CreateWindow(WindowInfo)
                     Parent = TabRight,
                 })
             end
+        end
+
+        --// Player banner: full-width cards stacked under the warning box and
+        --// above the tab's two columns. Sibling of the scrolling columns, not a
+        --// child, so it stays put while the tab's content scrolls under it.
+        local PlayerBannerHolder = New("Frame", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(0, 7),
+            Size = UDim2.fromScale(1, 0),
+            Visible = false,
+            ZIndex = 3,
+            Parent = TabContainer,
+        })
+        local PlayerBanners = {}
+
+        --// Stacks the banner cards and reports how tall the whole banner is
+        local function LayoutPlayerBanners(): number
+            local Height = 0
+
+            for _, Card in PlayerBanners do
+                if not Card.Visible then
+                    continue
+                end
+
+                Card.Holder.Position = UDim2.fromOffset(Card.Holder.Position.X.Offset, Height)
+                Height += Card:GetTotalHeight() + 6
+            end
+
+            PlayerBannerHolder.Visible = Height > 0
+            PlayerBannerHolder.Size = UDim2.new(1, 0, 0, math.max(0, Height - 6))
+
+            return PlayerBannerHolder.Visible and PlayerBannerHolder.Size.Y.Offset or 0
+        end
+
+        --// Slots the banner in below whatever is already stacked above it
+        local function ApplyPlayerBannerOffset(Offset: number): number
+            local Height = LayoutPlayerBanners()
+            if Height <= 0 then
+                return Offset
+            end
+
+            PlayerBannerHolder.Position = UDim2.fromOffset(0, Offset + 7)
+            return Offset + 7 + Height + 1
         end
 
         --// Tab Table \\--
