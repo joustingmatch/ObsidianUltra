@@ -12742,10 +12742,10 @@ function Library:CreateWindow(WindowInfo)
     local MiniFooter
     local MiniLabels = {}
     local MiniSubtitleExplicit = (WindowInfo.MinimizedSubtitle or "") ~= ""
-    --// Extra room reserved at the right of the top bar for the notification bell,
-    --// the enabled-features button and (when enabled) the minimize button, which
-    --// sit beside the move icon rather than in the search row
-    local RightBarInset = (WindowInfo.Minimizable and 28 or 0) + 60
+    --// Extra room reserved at the right of the top bar for the notification bell
+    --// and (when enabled) the minimize button, which sit beside the move icon
+    --// rather than in the search row
+    local RightBarInset = (WindowInfo.Minimizable and 28 or 0) + 30
 
     do
         Library.KeybindFrame, Library.KeybindContainer = Library:AddDraggableMenu("Keybinds")
