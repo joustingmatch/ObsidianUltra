@@ -18714,6 +18714,7 @@ function Library:CreateUnsupportedScreen(Info)
         Minimizable = false,
         DisableSearch = true,
         DisableNotificationBell = true,
+        ShowCustomCursor = false,
         AlwaysOnTop = Info.AlwaysOnTop == true,
     })
 
