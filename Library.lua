@@ -18706,6 +18706,10 @@ function Library:CreateUnsupportedScreen(Info)
         Title = Title,
         Icon = Info.Icon,
         Footer = Info.Footer ~= nil and Info.Footer or Library.Footer,
+        --// Chrome inherits from the real script so the gate matches its look;
+        --// colours come from the active Library.Scheme (set the theme first).
+        Font = Info.Font,
+        CornerRadius = Info.CornerRadius,
         Size = UDim2.fromOffset(660, 320),
         Center = true,
         AutoShow = true,

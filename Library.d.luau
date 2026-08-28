@@ -1341,6 +1341,8 @@ export type Library = {
             Supported: { string }?,
             Information: ({ string } | { { Title: string?, Text: string } })?,
             Footer: (string | { any })?,
+            Font: (Font | Enum.Font)?,
+            CornerRadius: number?,
             AlwaysOnTop: boolean?,
         }?
     ) -> { Destroyed: boolean, Executor: string, Window: Window, Destroy: (self: any) -> () }?,
