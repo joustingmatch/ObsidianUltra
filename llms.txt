@@ -662,9 +662,20 @@ end
 ```
 
 The window is built on `Library:CreateWindow` (fixed `660×320`, `Resizable = false`,
-`EnableSidebarResize = false`, `Minimizable = false`, `DisableSearch = true`, `Center`,
-`AutoShow`) with one `Unsupported` tab holding an **Executor** groupbox on the left (name +
-"not supported") and an **Information** groupbox on the right with numbered points.
+`EnableSidebarResize = false`, `Minimizable = false`, `DisableSearch = true`,
+`DisableNotificationBell = true`, `Center`, `AutoShow`) with one `Unsupported` tab holding an
+**Executor** groupbox on the left (name + "not supported") and an **Information** groupbox on
+the right with numbered points.
+
+The Executor groupbox also holds a built-in **Language** dropdown that live-translates the
+gate's own copy (heading, sub-line, the two default information points, and the dropdown's
+own label). Bundled languages: English, Filipino, Tiếng Việt, Bahasa Indonesia, Русский, ไทย,
+Deutsch. A caller-supplied `Information` is shown verbatim — switching language then only
+re-translates the heading and sub-line.
+
+`DisableNotificationBell` is a general `CreateWindow` option (default `false`) that hides the
+top-bar notification-history bell; the gate turns it on so the locked-down window has no
+notification control.
 
 `Info` fields (all optional):
 

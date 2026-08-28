@@ -18610,10 +18610,94 @@ function Library:CreateUnsupportedScreen(Info)
     end
 
     local Title = Info.Title or "Unsupported"
-    local Information = Info.Information or {
-        "Your executor lacks the proper environment for support.",
-        "Use another executor such as Potassium, Volt, Real, Opiumware, Delta, etc.",
+
+    --// Built-in localisation for the gate's own copy. Each entry translates the
+    --// heading, the sub-line, the two default information points, and the
+    --// language dropdown's own label. A caller-supplied Info.Information is shown
+    --// verbatim (only the heading/sub-line re-translate on a language switch).
+    local Languages = {
+        {
+            Name = "English",
+            Heading = "%s is not supported",
+            Subtitle = "This script does not support your current executor.",
+            Language = "Language",
+            Info = {
+                "Your executor lacks the proper environment for support.",
+                "Use another executor such as Potassium, Volt, Real, Opiumware, Delta, etc.",
+            },
+        },
+        {
+            Name = "Filipino",
+            Heading = "Ang %s ay hindi suportado",
+            Subtitle = "Hindi sinusuportahan ng script na ito ang iyong kasalukuyang executor.",
+            Language = "Wika",
+            Info = {
+                "Ang iyong executor ay walang wastong kapaligiran para sa suporta.",
+                "Gumamit ng ibang executor tulad ng Potassium, Volt, Real, Opiumware, Delta, atbp.",
+            },
+        },
+        {
+            Name = "Tiếng Việt",
+            Heading = "%s không được hỗ trợ",
+            Subtitle = "Tập lệnh này không hỗ trợ trình thực thi hiện tại của bạn.",
+            Language = "Ngôn ngữ",
+            Info = {
+                "Trình thực thi của bạn thiếu môi trường phù hợp để được hỗ trợ.",
+                "Hãy dùng trình thực thi khác như Potassium, Volt, Real, Opiumware, Delta, v.v.",
+            },
+        },
+        {
+            Name = "Bahasa Indonesia",
+            Heading = "%s tidak didukung",
+            Subtitle = "Skrip ini tidak mendukung executor Anda saat ini.",
+            Language = "Bahasa",
+            Info = {
+                "Executor Anda tidak memiliki lingkungan yang tepat untuk didukung.",
+                "Gunakan executor lain seperti Potassium, Volt, Real, Opiumware, Delta, dll.",
+            },
+        },
+        {
+            Name = "Русский",
+            Heading = "%s не поддерживается",
+            Subtitle = "Этот скрипт не поддерживает ваш текущий исполнитель.",
+            Language = "Язык",
+            Info = {
+                "В вашем исполнителе отсутствует нужная среда для поддержки.",
+                "Используйте другой исполнитель, например Potassium, Volt, Real, Opiumware, Delta и т. д.",
+            },
+        },
+        {
+            Name = "ไทย",
+            Heading = "ไม่รองรับ %s",
+            Subtitle = "สคริปต์นี้ไม่รองรับ executor ปัจจุบันของคุณ",
+            Language = "ภาษา",
+            Info = {
+                "executor ของคุณไม่มีสภาพแวดล้อมที่เหมาะสมสำหรับการรองรับ",
+                "ใช้ executor อื่น เช่น Potassium, Volt, Real, Opiumware, Delta ฯลฯ",
+            },
+        },
+        {
+            Name = "Deutsch",
+            Heading = "%s wird nicht unterstützt",
+            Subtitle = "Dieses Skript unterstützt deinen aktuellen Executor nicht.",
+            Language = "Sprache",
+            Info = {
+                "Deinem Executor fehlt die passende Umgebung für Unterstützung.",
+                "Verwende einen anderen Executor wie Potassium, Volt, Real, Opiumware, Delta usw.",
+            },
+        },
     }
+
+    local LangByName = {}
+    local LangNames = {}
+    for _, Lang in Languages do
+        LangByName[Lang.Name] = Lang
+        table.insert(LangNames, Lang.Name)
+    end
+
+    --// A caller-supplied Information overrides the localised default points; the
+    --// language switch then only re-translates the heading and sub-line.
+    local CustomInformation = Info.Information
 
     --// Build a real, locked-down Obsidian window (fixed size, non-resizable,
     --// single-purpose) the same way the key-system window spawns, rather than a
@@ -18635,28 +18719,59 @@ function Library:CreateUnsupportedScreen(Info)
 
     local Tab = Window:AddTab({ Name = "Unsupported", Icon = "shield-alert" })
 
-    --// Heading: executor name + "not supported"
+    --// Heading: executor name + "not supported", plus the language picker
     local Heading = Tab:AddLeftGroupbox("Executor", "shield-alert")
-    Heading:AddLabel({ Text = string.format("%s is not supported", Executor), DoesWrap = true })
-    Heading:AddLabel({ Text = "This script does not support your current executor.", DoesWrap = true })
+    local HeadingLabel = Heading:AddLabel({ Text = "", DoesWrap = true })
+    local SubtitleLabel = Heading:AddLabel({ Text = "", DoesWrap = true })
+    local LanguageDropdown = Heading:AddDropdown("UnsupportedLanguage", {
+        Text = "Language",
+        Values = LangNames,
+        Default = 1,
+    })
 
-    --// Information: the numbered points
+    --// Information: the numbered points (localised default, or verbatim custom)
     local InfoBox = Tab:AddRightGroupbox("Information", "info")
-    for Index, Entry in Information do
-        local EntryTitle, EntryText
-        if typeof(Entry) == "table" then
-            EntryTitle, EntryText = Entry.Title, Entry.Text or ""
-        else
-            EntryText = tostring(Entry)
-        end
+    local DefaultInfoLabels = {}
+    if CustomInformation then
+        for Index, Entry in CustomInformation do
+            local EntryTitle, EntryText
+            if typeof(Entry) == "table" then
+                EntryTitle, EntryText = Entry.Title, Entry.Text or ""
+            else
+                EntryText = tostring(Entry)
+            end
 
-        if EntryTitle and EntryTitle ~= "" then
-            InfoBox:AddLabel({ Text = string.format("%d. %s", Index, EntryTitle), DoesWrap = true })
-            InfoBox:AddLabel({ Text = EntryText, DoesWrap = true })
-        else
-            InfoBox:AddLabel({ Text = string.format("%d. %s", Index, EntryText), DoesWrap = true })
+            if EntryTitle and EntryTitle ~= "" then
+                InfoBox:AddLabel({ Text = string.format("%d. %s", Index, EntryTitle), DoesWrap = true })
+                InfoBox:AddLabel({ Text = EntryText, DoesWrap = true })
+            else
+                InfoBox:AddLabel({ Text = string.format("%d. %s", Index, EntryText), DoesWrap = true })
+            end
+        end
+    else
+        --// Two localised points, retranslated when the language changes
+        for Index = 1, 2 do
+            DefaultInfoLabels[Index] = InfoBox:AddLabel({ Text = "", DoesWrap = true })
         end
     end
+
+    --// Apply a language to every localised string in the window
+    local function ApplyLanguage(Name)
+        local Lang = LangByName[Name] or Languages[1]
+        HeadingLabel:SetText(string.format(Lang.Heading, Executor))
+        SubtitleLabel:SetText(Lang.Subtitle)
+        LanguageDropdown:SetText(Lang.Language)
+        if not CustomInformation then
+            for Index, Label in DefaultInfoLabels do
+                Label:SetText(string.format("%d. %s", Index, Lang.Info[Index] or ""))
+            end
+        end
+    end
+
+    LanguageDropdown:OnChanged(function(Value)
+        ApplyLanguage(Value)
+    end)
+    ApplyLanguage("English")
 
     local Screen = { Destroyed = false, Executor = Executor, Window = Window }
 
