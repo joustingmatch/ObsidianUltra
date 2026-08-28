@@ -432,6 +432,7 @@ local Templates = {
 
         CornerRadius = 4,
         NotifySide = "Right",
+        DisableNotificationBell = false,
         ShowCustomCursor = true,
 
         Font = Enum.Font.Code,
@@ -13439,7 +13440,7 @@ function Library:CreateWindow(WindowInfo)
             Library:ApplyLucideIcon(MoveIconImage, MoveIcon)
         end
 
-        do
+        if not WindowInfo.DisableNotificationBell then
             --// Notification bell: sits left of the minimize/move cluster and
             --// opens the built-in Notification History, with an unread badge
             local BellIcon = Library:GetIcon("bell")
@@ -18628,6 +18629,7 @@ function Library:CreateUnsupportedScreen(Info)
         EnableSidebarResize = false,
         Minimizable = false,
         DisableSearch = true,
+        DisableNotificationBell = true,
         AlwaysOnTop = Info.AlwaysOnTop == true,
     })
 

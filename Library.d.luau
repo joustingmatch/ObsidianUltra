@@ -1371,6 +1371,7 @@ export type Library = {
             MinimizedSubtitle: string?,
             CornerRadius: number?,
             NotifySide: "Left" | "Right"?,
+            DisableNotificationBell: boolean?,
             ShowCustomCursor: boolean?,
             AlwaysOnTop: boolean?,
             Font: Font | Enum.Font?,
