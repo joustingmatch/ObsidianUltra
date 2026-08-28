@@ -19,7 +19,7 @@ Types for these additions live in `Library.d.luau`; `Example.lua` has runnable u
 - **Sidebar** — [Resizable sidebar](#resizable-sidebar), [Compact sidebar](#compact-sidebar), [Sidebar tooltips](#sidebar-tooltips)
 - **Elements** — [Restyled toggles & sliders](#restyled-toggles-and-sliders), [Select All / Deselect All](#select-all--deselect-all), [Expandable dropdowns](#expandable-dropdowns)
 - **Chrome** — [Search v2](#search-v2), [Minimize](#minimize), [Copyable footer](#copyable-footer), [Watermark status bar](#watermark-status-bar), [Player cards](#player-cards), [Notifications & history](#notifications--history)
-- **System** — [Tooltips](#tooltips), [Pill corners, radius & DPI](#pill-corners-corner-radius--dpi), [Scheme.BlueColor](#schemebluecolor)
+- **System** — [Tooltips](#tooltips), [Pill corners, radius & DPI](#pill-corners-corner-radius--dpi), [Scheme.BlueColor](#schemebluecolor), [Unsupported-executor gate](#unsupported-executor-gate)
 
 ---
 
@@ -642,3 +642,51 @@ elements:
 - Alias `"Blue"` — any property that accepts a scheme string accepts `"Blue"` or
   `"BlueColor"`, and it re-colours automatically when the theme changes
 - `ThemeManager` preserves it across theme swaps, like `RedColor` and `DarkColor`
+
+---
+
+## Unsupported-executor gate
+
+`Library:CreateUnsupportedScreen(Info)` gates a script behind a supported-executor check.
+It detects the running executor with `identifyexecutor()`, and if that executor is
+unsupported it spawns a **real, locked-down Obsidian window** — fixed small size,
+non-resizable, no sidebar resize, no minimize, no search — and returns a handle. If the
+executor *is* supported it builds nothing and returns `nil`, so you can gate with a single
+guard:
+
+```lua
+if Library:CreateUnsupportedScreen({ Unsupported = { "Swift", "Codex" } }) then
+    return -- unsupported: the gate window is showing, stop here
+end
+-- supported: continue building your real UI
+```
+
+The window is built on `Library:CreateWindow` (fixed `660×320`, `Resizable = false`,
+`EnableSidebarResize = false`, `Minimizable = false`, `DisableSearch = true`, `Center`,
+`AutoShow`) with one `Unsupported` tab holding an **Executor** groupbox on the left (name +
+"not supported") and an **Information** groupbox on the right with numbered points.
+
+`Info` fields (all optional):
+
+- `Title` — window title (default `"Unsupported"`)
+- `Icon` — window icon (Lucide name or asset id), e.g. `"shield-alert"`
+- `Executor` — override the detected executor name
+- `Unsupported: {string}` — blocklist; unsupported if the detected name contains any entry
+- `Supported: {string}` — whitelist; if given, unsupported = *not* in it (wins over `Unsupported`)
+- `Information` — `{string}` (auto-numbered) or `{{Title?, Text}}`; defaults to the two
+  standard points (environment / use another executor)
+- `Footer` — defaults to `Library.Footer` (the normal UI's footer)
+- `AlwaysOnTop` — keep the gate above other GUIs
+
+Matching is a **case-insensitive substring** test against `identifyexecutor()`. With neither
+list, the screen always shows (the caller has already decided to gate). The returned handle
+is `{ Executor, Window, Destroyed, Destroy() }`; `:Destroy()` unloads the library.
+
+```lua
+local Gate = Library:CreateUnsupportedScreen({
+    Title = "mspaint",
+    Icon = "shield-alert",
+    Supported = { "Potassium", "Volt", "Real", "Opiumware", "Delta" },
+})
+if Gate then return end
+```

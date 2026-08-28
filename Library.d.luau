@@ -1331,6 +1331,19 @@ export type Library = {
     SetNotificationHistoryVisible: (self: Library, Visible: boolean) -> (),
     ToggleNotificationHistory: (self: Library) -> (),
     CreateLoading: (self: Library, LoadingInfo: LoadingInfo) -> Loading,
+    CreateUnsupportedScreen: (
+        self: Library,
+        Info: {
+            Title: string?,
+            Icon: (string | number)?,
+            Executor: string?,
+            Unsupported: { string }?,
+            Supported: { string }?,
+            Information: ({ string } | { { Title: string?, Text: string } })?,
+            Footer: (string | { any })?,
+            AlwaysOnTop: boolean?,
+        }?
+    ) -> { Destroyed: boolean, Executor: string, Window: Window, Destroy: (self: any) -> () }?,
     CreateWindow: (
         self: Library,
         WindowInfo: {

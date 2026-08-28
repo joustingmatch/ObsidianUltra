@@ -13745,6 +13745,9 @@ function Library:CreateWindow(WindowInfo)
 
         BuildFooter(WindowInfo.Footer)
         BuildMiniFooter(WindowInfo.Footer)
+        --// Remembered so standalone screens (e.g. the unsupported-executor gate)
+        --// can default their footer to the window's
+        Library.Footer = WindowInfo.Footer
 
         --// Resize Button \\--
         if WindowInfo.Resizable then
@@ -13899,6 +13902,7 @@ function Library:CreateWindow(WindowInfo)
         BuildFooter(Footer)
         BuildMiniFooter(Footer)
         WindowInfo.Footer = Footer
+        Library.Footer = Footer
     end
 
     function Window:SetAlwaysOnTop(Enabled: boolean)
@@ -18555,6 +18559,116 @@ function Library:CreateLoading(LoadingInfo)
 
     Library.ActiveLoading = Loading
     return Loading
+end
+
+--// A small, non-resizable window shown when the running executor is one your
+--// script does not support. It names the detected executor, states it is
+--// unsupported, and lists information/instructions. Detection is via
+--// identifyexecutor; you choose which executors to gate.
+--//
+--// Returns the screen object (with :Destroy()) when the executor is unsupported,
+--// or nil when it is supported (nothing is shown). The footer defaults to the
+--// footer of your normal window (Library.Footer).
+function Library:CreateUnsupportedScreen(Info)
+    Info = Info or {}
+
+    --// Resolve the running executor's name
+    local Executor = Info.Executor
+    if not Executor and identifyexecutor then
+        local Ok, Name = pcall(identifyexecutor)
+        if Ok and typeof(Name) == "string" and Name ~= "" then
+            Executor = Name
+        end
+    end
+    Executor = Executor or "Unknown"
+
+    --// Decide if this executor is unsupported. A Supported whitelist wins; else an
+    --// Unsupported blocklist; with neither list the screen always shows (the caller
+    --// already decided to gate). Matching is a case-insensitive substring test.
+    local function Matches(List): boolean
+        local Lower = string.lower(Executor)
+        for _, Entry in List do
+            if string.find(Lower, string.lower(tostring(Entry)), 1, true) then
+                return true
+            end
+        end
+        return false
+    end
+
+    local IsUnsupported
+    if typeof(Info.Supported) == "table" then
+        IsUnsupported = not Matches(Info.Supported)
+    elseif typeof(Info.Unsupported) == "table" then
+        IsUnsupported = Matches(Info.Unsupported)
+    else
+        IsUnsupported = true
+    end
+
+    if not IsUnsupported then
+        return nil
+    end
+
+    local Title = Info.Title or "Unsupported"
+    local Information = Info.Information or {
+        "Your executor lacks the proper environment for support.",
+        "Use another executor such as Potassium, Volt, Real, Opiumware, Delta, etc.",
+    }
+
+    --// Build a real, locked-down Obsidian window (fixed size, non-resizable,
+    --// single-purpose) the same way the key-system window spawns, rather than a
+    --// hand-built ScreenGui. Footer defaults to the normal UI's footer.
+    local Window = Library:CreateWindow({
+        Title = Title,
+        Icon = Info.Icon,
+        Footer = Info.Footer ~= nil and Info.Footer or Library.Footer,
+        Size = UDim2.fromOffset(660, 320),
+        Center = true,
+        AutoShow = true,
+        Resizable = false,
+        EnableSidebarResize = false,
+        Minimizable = false,
+        DisableSearch = true,
+        AlwaysOnTop = Info.AlwaysOnTop == true,
+    })
+
+    local Tab = Window:AddTab({ Name = "Unsupported", Icon = "shield-alert" })
+
+    --// Heading: executor name + "not supported"
+    local Heading = Tab:AddLeftGroupbox("Executor", "shield-alert")
+    Heading:AddLabel({ Text = string.format("%s is not supported", Executor), DoesWrap = true })
+    Heading:AddLabel({ Text = "This script does not support your current executor.", DoesWrap = true })
+
+    --// Information: the numbered points
+    local InfoBox = Tab:AddRightGroupbox("Information", "info")
+    for Index, Entry in Information do
+        local EntryTitle, EntryText
+        if typeof(Entry) == "table" then
+            EntryTitle, EntryText = Entry.Title, Entry.Text or ""
+        else
+            EntryText = tostring(Entry)
+        end
+
+        if EntryTitle and EntryTitle ~= "" then
+            InfoBox:AddLabel({ Text = string.format("%d. %s", Index, EntryTitle), DoesWrap = true })
+            InfoBox:AddLabel({ Text = EntryText, DoesWrap = true })
+        else
+            InfoBox:AddLabel({ Text = string.format("%d. %s", Index, EntryText), DoesWrap = true })
+        end
+    end
+
+    local Screen = { Destroyed = false, Executor = Executor, Window = Window }
+
+    function Screen:Destroy()
+        if Screen.Destroyed then
+            return
+        end
+        Screen.Destroyed = true
+        if Library.Unload then
+            Library:Unload()
+        end
+    end
+
+    return Screen
 end
 
 local function OnPlayerChange()
