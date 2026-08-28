@@ -13,6 +13,39 @@ local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 
 Types for these additions live in `Library.d.luau`; `Example.lua` has runnable usage.
 
+## Contents
+
+- **Tabs & layout** — [Single-column tabs](#single-column-tabs), [Sub tabs](#sub-tabs-tabs-inside-a-tab), [Header](#header)
+- **Sidebar** — [Resizable sidebar](#resizable-sidebar), [Compact sidebar](#compact-sidebar), [Sidebar tooltips](#sidebar-tooltips)
+- **Elements** — [Restyled toggles & sliders](#restyled-toggles-and-sliders), [Select All / Deselect All](#select-all--deselect-all), [Expandable dropdowns](#expandable-dropdowns)
+- **Chrome** — [Search v2](#search-v2), [Minimize](#minimize), [Copyable footer](#copyable-footer), [Watermark status bar](#watermark-status-bar), [Player cards](#player-cards), [Notifications & history](#notifications--history)
+- **System** — [Tooltips](#tooltips), [Pill corners, radius & DPI](#pill-corners-corner-radius--dpi), [Scheme.BlueColor](#schemebluecolor)
+
+---
+
+## Single-column tabs
+
+By default a tab splits its content into a left and a right column. Passing a layout hint
+collapses it to **one full-width column** instead — better for tabs that read top to bottom
+(info, changelogs, a single settings list) and don't want a split.
+
+```lua
+local Info = Window:AddTab({
+    Name = "Info",
+    Icon = "square",
+    SingleColumn = true,          -- or: Layout = "Single" / "Center" / 1
+})
+```
+
+`Layout` accepts `"Single"`, `"Center"`, `"Centre"`, `"One"`, or `1`; the boolean
+`SingleColumn = true` is shorthand for the same. Omitted (or `"Dual"` / `2`) keeps the
+normal split.
+
+In single-column mode **both** `AddLeftGroupbox` and `AddRightGroupbox` (and the tabbox
+equivalents) land in the one column, so existing code that puts boxes on both sides still
+works — everything simply stacks. Sub tabs of a single-column tab inherit the layout, so
+their columns are single too.
+
 ## Sub tabs (tabs inside a tab)
 
 A sub tab is a second level of tabs *inside* one sidebar tab. Giving a tab sub tabs gets
@@ -80,8 +113,10 @@ idle rows are label only at 40% transparency, and hover sits between the two. Th
 animates open and closed, and the chevron rotates with it. Disable both with
 `Animations = { SidebarSubTabs = false }`, which like `SubTabUnderline` defaults to `true`.
 
-A compacted sidebar has no room for labels, so nested lists collapse while compact and the
-open tab's list reopens when the sidebar expands again.
+**In a compacted sidebar the sub tabs still show.** The chevron has no room, so it is
+hidden, but the open tab's nested rows flip to **centered icon-only rows** (the labels and
+indent marker drop) tucked under the parent icon — see [Compact sidebar](#compact-sidebar).
+Expanding the sidebar restores the labelled rows.
 
 Per-tab control:
 
@@ -158,13 +193,151 @@ The header was reworked and differs from upstream in ways that affect script aut
 - `Window:ShowTabInfo(Name, Description)` accepts a `nil`/empty description and hides the
   second line instead of leaving a blank one.
 - **The search box is a pill** (fully rounded, icon inset on the left, placeholder
-  `"Search..."`). It is registered in `Library.PillCorners`, a third corner list added by
-  this fork: those corners stay fully rounded at any corner radius above 0, and go square
-  when the radius is set to 0, so the pill still obeys `Window:SetCornerRadius(0)`.
+  `"Search..."`). It is registered in `Library.PillCorners` (see
+  [Pill corners](#pill-corners-corner-radius--dpi)), so it stays rounded at any radius
+  above 0 and squares off at 0.
 - `SearchbarSize` now defaults to `UDim2.fromScale(0.35, 1)` rather than
   `UDim2.fromScale(1, 1)`, and the box no longer resizes itself when tab info appears —
   the tab info grows to fill whatever the search box does not use. Pass your own
   `SearchbarSize` to override.
+- A **notification bell** and (when `Minimizable`) a minimize button sit at the right of
+  the top bar — see [Notifications](#notifications--history) and [Minimize](#minimize).
+
+## Resizable sidebar
+
+The divider between the sidebar and the content is a **drag handle** — grab it and drag to
+widen or narrow the sidebar, and drag it small enough and it snaps to the compact
+icon-only width. **This fork enables it by default.** Turn it off with
+`EnableSidebarResize = false`.
+
+```lua
+Library:CreateWindow({
+    EnableSidebarResize = true,   -- default now true; false removes the drag handle
+    -- tuning (all optional):
+    MinSidebarWidth = 128,        -- clamped to >= 64
+    SidebarCompactWidth = 48,     -- clamped to >= 48
+    SidebarCollapseThreshold = 0.5, -- fraction between compact + min where it snaps compact
+    DisableCompactingSnap = false,  -- true = free resize, no snap to the compact width
+    CompactWidthActivation = ...,   -- width at/below which it reads as compact when snap is off
+    SidebarCompacted = false,       -- start compact
+})
+
+Window:SetSidebarWidth(px)
+Window:GetSidebarWidth()
+Window:SetCompact(true)            -- jump straight to the compact width
+Window:IsSidebarCompacted()
+```
+
+## Compact sidebar
+
+A compact sidebar is **icons only**: the window title, tab labels, and the sub-tab chevrons
+are hidden and the tab icons center in the narrow column. This is separate from
+[Minimize](#minimize) (which collapses the whole window) — compacting only narrows the
+sidebar.
+
+- **Sub tabs still appear.** The open tab's nested rows render as centered icon-only rows
+  under the parent icon (see [the sidebar list](#the-sidebar-list)). Expanding restores the
+  labels.
+- `Library.SidebarCompacted` is a live boolean reflecting the current state (also
+  `Window:IsSidebarCompacted()`).
+
+## Sidebar tooltips
+
+Sidebar tab and sub-tab buttons carry a tooltip of their name that **only shows while the
+sidebar is compact** — exactly when the label is hidden and you need it — so it never
+redundantly repeats a label you can already read. The styling is the ordinary tooltip look
+(no special colour), and it defaults to the tab's own name.
+
+```lua
+Window:AddTab({ Name = "Combat", Icon = "swords" })              -- tooltip "Combat" when compact
+Window:AddTab({ Name = "Combat", Icon = "swords", Tooltip = "Aim & fight" }) -- override the text
+```
+
+Sub tabs get the same automatically from their name. Under the hood this is the `"Sidebar"`
+variant of `Library:AddTooltip(Info, DisabledInfo, HoverInstance, Variant)` — the fourth
+argument is new; a `"Sidebar"` tooltip is gated to the compact sidebar, anything else shows
+normally.
+
+## Restyled toggles and sliders
+
+These changed shape from upstream, so screenshots and pixel expectations differ. The API is
+untouched — `AddToggle` and `AddSlider` take the same arguments and behave the same.
+
+**Toggle** is a 38×20 pill. Off, the track is a grey ramp (a `UIGradient` multiplying the
+track colour, landing on `#505050` → `#8A8A8A` against a white `FontColor`); on, it is the
+accent colour with a gentler ramp. The ball is `FontColor` with a shadow beneath it, and
+slides between the two ends. The track, ball, and shadow are pill corners, so they round at
+any radius above 0 and **square off into a boxy toggle at radius 0**.
+
+**Slider** puts its label top left and its value top right, above a pill shaped bar, with a
+ball riding the fill edge. The track is a grey ramp running light at the left to dark at
+the right — the opposite direction to the switch — so the filled part always reads brighter
+than the track that follows it. The filled part is the accent colour. The ball is **wider
+than the bar** — 18px against a 16px bar, growing to 24px while hovered or dragged on a Sine
+in-out curve — so it sits proud of the track, and the holder reserves margin for it to
+overflow into. It carries a shadow and a faint outline, and the bar has an inner outline: a
+ring inset by a pixel, since Roblox strokes sit outside the border and cannot be drawn
+inside one. The bar, fill, ball, and ball shadow are all pill corners, so the **slider dot
+squares off at radius 0** along with everything else.
+
+`Compact = true` sliders are unchanged: no ball, and the value stays centred in the bar,
+since there is no room for the two row layout.
+
+## Select All / Deselect All
+
+Multi select dropdowns get a built in row above their values with **Select All** and
+**Deselect All**, in both the inline list and the expanded panel. It skips disabled values,
+and while a search is typed it only touches the values matching that search.
+
+```lua
+Groupbox:AddDropdown("Materials", {
+    Values = Materials,
+    Multi = true,
+
+    SelectAllButtons = true, -- default; false removes the row
+})
+```
+
+Methods: `Dropdown:SelectAll(Search?)` and `Dropdown:DeselectAll(Search?)`. Both are multi
+only, both fire the callback once, and `DeselectAll` keeps one value picked when
+`AllowNull` is false.
+
+## Expandable dropdowns
+
+Every dropdown gets a small expand button beside its arrow. Clicking it opens all of the
+dropdown's values in a panel over the window — a dimmed overlay with a titled panel, an
+optional searchbar, and the values laid out in columns. It is the same dropdown underneath:
+selecting in the panel and selecting in the inline list run identical code, and both views
+stay in sync.
+
+```lua
+Groupbox:AddDropdown("Materials", {
+    Values = Materials,      -- long lists are what this is for
+    Multi = true,
+    Searchable = true,       -- gives the panel its own searchbar
+
+    Expandable = true,       -- default; false removes the expand button
+    ExpandColumns = 3,       -- default 2
+})
+```
+
+Closing: the panel's **X** button, clicking anywhere off the panel, or — when the dropdown
+is single select — picking a value. Multi select panels stay open so several values can be
+ticked in one visit.
+
+Methods: `Dropdown:Expand()`, `Dropdown:Collapse()`, `Dropdown:ToggleExpanded()`,
+`Dropdown:IsExpanded()`.
+
+Notes:
+- The panel's searchbar only exists when `Searchable = true`, and it is separate from the
+  inline searchbar — opening the panel clears it.
+- Only one dropdown can be expanded at a time; expanding one collapses another, and the
+  open inline menu is closed.
+- `Library.ActiveExpandedDropdown` holds the expanded dropdown, or `nil`.
+- The panel is parented to `Library.MainFrame` (this fork stores the window frame there so
+  elements defined outside `CreateWindow` can overlay it). If there is no window yet,
+  `Expand` does nothing.
+- `DisabledValues` render dimmed and unclickable in the panel, as in the inline list.
 
 ## Search v2
 
@@ -270,90 +443,7 @@ The card opens at the window's last position rather than jumping to a corner, an
 moves the window to wherever the card was dragged. It is dragged by its header, so the
 restore button still takes clicks. The keybind is ignored while a text box has focus, and
 both the card and the window stay hidden while the UI is toggled off, so minimizing never
-fights `Library:Toggle`.
-
-## Restyled toggles and sliders
-
-These changed shape from upstream, so screenshots and pixel expectations differ. The API is
-untouched — `AddToggle` and `AddSlider` take the same arguments and behave the same.
-
-**Toggle** is a 38×20 pill. Off, the track is a grey ramp (a `UIGradient` multiplying the
-track colour, landing on `#505050` → `#8A8A8A` against a white `FontColor`); on, it is the
-accent colour with a gentler ramp. The ball is `FontColor` with a shadow beneath it, and
-slides between the two ends.
-
-**Slider** puts its label top left and its value top right, above a pill shaped bar, with a
-ball riding the fill edge. The track is a grey ramp running light at the left to dark at
-the right — the opposite direction to the switch — so the filled part always reads brighter
-than the track that follows it. The filled part is the accent colour. The ball is **wider than the bar** — 18px against a 16px bar,
-growing to 24px while hovered or dragged on a Sine in-out curve — so it sits proud of the
-track, and the holder reserves margin for it to overflow into. It carries a shadow and a
-faint outline, and the bar has an inner outline: a ring inset by a pixel, since Roblox
-strokes sit outside the border and cannot be drawn inside one.
-
-`Compact = true` sliders are unchanged: no ball, and the value stays centred in the bar,
-since there is no room for the two row layout.
-
-Buttons, sliders bars and the search box are pill shaped via `Library.PillCorners`, so they
-stay fully rounded at any corner radius above 0 and square off at 0. Keybind buttons are
-deliberately **not** pills: their menu attaches to the right edge and squares those corners
-off while open.
-
-## Select All / Deselect All
-
-Multi select dropdowns get a built in row above their values with **Select All** and
-**Deselect All**, in both the inline list and the expanded panel. It skips disabled values,
-and while a search is typed it only touches the values matching that search.
-
-```lua
-Groupbox:AddDropdown("Materials", {
-    Values = Materials,
-    Multi = true,
-
-    SelectAllButtons = true, -- default; false removes the row
-})
-```
-
-Methods: `Dropdown:SelectAll(Search?)` and `Dropdown:DeselectAll(Search?)`. Both are multi
-only, both fire the callback once, and `DeselectAll` keeps one value picked when
-`AllowNull` is false.
-
-## Expandable dropdowns
-
-Every dropdown gets a small expand button beside its arrow. Clicking it opens all of the
-dropdown's values in a panel over the window — a dimmed overlay with a titled panel, an
-optional searchbar, and the values laid out in columns. It is the same dropdown underneath:
-selecting in the panel and selecting in the inline list run identical code, and both views
-stay in sync.
-
-```lua
-Groupbox:AddDropdown("Materials", {
-    Values = Materials,      -- long lists are what this is for
-    Multi = true,
-    Searchable = true,       -- gives the panel its own searchbar
-
-    Expandable = true,       -- default; false removes the expand button
-    ExpandColumns = 3,       -- default 2
-})
-```
-
-Closing: the panel's **X** button, clicking anywhere off the panel, or — when the dropdown
-is single select — picking a value. Multi select panels stay open so several values can be
-ticked in one visit.
-
-Methods: `Dropdown:Expand()`, `Dropdown:Collapse()`, `Dropdown:ToggleExpanded()`,
-`Dropdown:IsExpanded()`.
-
-Notes:
-- The panel's searchbar only exists when `Searchable = true`, and it is separate from the
-  inline searchbar — opening the panel clears it.
-- Only one dropdown can be expanded at a time; expanding one collapses another, and the
-  open inline menu is closed.
-- `Library.ActiveExpandedDropdown` holds the expanded dropdown, or `nil`.
-- The panel is parented to `Library.MainFrame` (this fork stores the window frame there so
-  elements defined outside `CreateWindow` can overlay it). If there is no window yet,
-  `Expand` does nothing.
-- `DisabledValues` render dimmed and unclickable in the panel, as in the inline list.
+fights `Library:Toggle`. The card also mirrors the [notification bell](#notifications--history).
 
 ## Copyable footer
 
@@ -408,7 +498,142 @@ separators (`"|"`, `"-"`) in as their own plain segments.
   them, every segment falls back to plain text and no copy buttons are created — do not
   assume they exist.
 
-### Scheme.BlueColor
+## Watermark status bar
+
+The watermark is a **segmented status bar** floating over the game (upstream's is a single
+line of text). Each segment has an optional icon and a `Text` that is either a string or a
+**function** — function segments auto-refresh on an interval, so ping / FPS / clock update
+themselves.
+
+```lua
+local Watermark = Library:AddWatermark({
+    { Player = LocalPlayer },                 -- avatar + display name (NameType = "Username" for the account name)
+    { Icon = "flame", Text = "mspaint", Accent = true }, -- Accent tints this segment
+    { Icon = "cpu",  Text = function() return identifyexecutor and identifyexecutor() or "Unknown" end },
+    { Icon = "wifi", Text = function() return string.format("%d ms", GetPing()) end },
+    { Icon = "clock", Text = function() return os.date("%H:%M") end },
+})
+
+Watermark.RefreshRate = 1   -- seconds between refreshes of the function segments
+```
+
+Segment fields: `Text` (string or `() -> string`), `Icon` (lucide name), `Accent` (tint
+this segment with the accent colour), and `Player` / `PlayerCard` (render a
+[player card](#player-cards) avatar + name; `NameType = "Username"` swaps display name for
+the account name). Function segments are re-evaluated every `RefreshRate` seconds.
+
+## Player cards
+
+`AddPlayerInfo` renders a Roblox player as a card — avatar plus optional title and
+description. It has **two forms decided by where you add it**:
+
+- on a **tab** → a **full-width banner** above both columns
+- on a **groupbox** → the **compact form**, just the avatar box
+
+```lua
+-- Banner on a tab
+Tab:AddPlayerInfo("HomeBanner", {
+    -- Defaults to the local player; pass Player = <Player> or UserId = <id> for someone else.
+    Title = "Welcome to the <b>ObsidianUltra</b> example",   -- RichText
+    Description = {                                           -- string OR a list of lines
+        '<font color="#8f6bff">Home</font> — player card + features',
+        '<font color="#8f6bff">Elements</font> — every element type',
+    },
+    ThumbnailType = "HeadShot",   -- "HeadShot" | "Bust" | "Avatar"
+    Height = 84,                  -- minimum height; the banner grows to fit the description
+})
+
+-- Compact avatar inside a groupbox
+Groupbox:AddPlayerInfo("Profile", { ThumbnailType = "Bust", Height = 190 })
+```
+
+The banner's **height grows to fit its description** — a long or multi-line description no
+longer spills past the card, and `Height` acts as the minimum. Description entries can be a
+divider (a lone dividing rule between lines).
+
+Info fields: `Player` / `UserId` (who; defaults to the local player), `Title`, `Description`
+(string or `{ string }`, RichText), `ThumbnailType`, `Thumbnail` (a custom icon overriding
+the avatar), `Height`, `Visible`.
+
+Methods: `SetTitle`, `SetDescription`, `SetPlayer`, `SetUserId`, `SetThumbnail`,
+`SetHeight`, `SetVisible`, `GetTotalHeight`.
+
+## Notifications & history
+
+`Library:Notify` is extended and notifications are **remembered** in a history panel opened
+from a bell in the header.
+
+```lua
+Library:Notify({
+    Title = "Key System",
+    Description = "Received: Banana",
+    Time = 4,                       -- 0/omit with Persist for a sticky toast
+    Type = "Success",               -- "Error" | "Warning" | "Success" | "Info" — colours the text
+    Icon = "check",
+    SoundId = nil,
+})
+```
+
+Beyond upstream, `Notify` accepts `Type` (colours the primary text via
+`Library.NotificationTypeColors`), `Persist` (keep it until dismissed), `Steps` (a
+progress-style update), `Icon` / `BigIcon` / `IconColor`, and `TitleColor` /
+`DescriptionColor`.
+
+**History**: every notification is pushed onto `Library.NotificationHistory` (newest first,
+capped at `NotificationHistoryLimit`, default 100). The header **bell** opens a panel
+listing them, with an unread badge; the bell is mirrored into the minimized card.
+
+```lua
+Library:GetNotificationHistory()
+Library:ClearNotificationHistory()
+Library:ToggleNotificationHistory()
+Library:SetNotificationHistoryVisible(true)
+Library:SetNotifySide("Right")            -- "Left" | "Right"; also the NotifySide window option
+
+Library:CreateWindow({
+    NotifySide = "Right",
+    NotificationHistoryLimit = 100,
+    NotificationHistoryKeybind = Enum.KeyCode.RightAlt,  -- opens/closes the panel
+})
+```
+
+`Library.NotificationTypeColors` is a `{ [string]: Color3 }` you can recolour
+(`Error`/`Warning`/`Success`/`Info`).
+
+## Tooltips
+
+Tooltips **pop in with a smooth animation** rather than snapping: an ease-out fade plus a
+subtle scale-up (`0.85 → 1`) on show over ~0.22s, and a quick fade + settle on hide. It
+drives a dedicated `UIScale` kept out of the DPI scale pass, so it never fights DPI scaling,
+and a generation guard keeps the shared tooltip stable when the pointer sweeps from one
+element straight to the next.
+
+`Library:AddTooltip(Info, DisabledInfo, HoverInstance, Variant?)` takes a new fourth
+argument. `Variant = "Sidebar"` gates the tooltip to the compact sidebar (used by tab and
+sub-tab buttons — see [Sidebar tooltips](#sidebar-tooltips)); any other value (or none) is a
+normal always-on tooltip. Elements that already expose `Tooltip` / `DisabledTooltip`
+(toggles, sliders, inputs, buttons, dropdowns, key/colour pickers) are unchanged.
+
+## Pill corners, corner radius & DPI
+
+This fork adds a **third corner list**, `Library.PillCorners`, alongside the existing
+`Library.Corners` and `Library.SpecificCorners`. Anything registered as a pill corner stays
+**fully rounded at any corner radius above 0** and goes **square at radius 0**, so pills
+still obey `Window:SetCornerRadius(0)`.
+
+Pill-cornered elements: the search box, buttons, slider bars/fills/balls, and toggle
+tracks/balls. Keybind buttons are deliberately **not** pills — their menu attaches to the
+right edge and squares those corners off while open.
+
+```lua
+Window:SetCornerRadius(0)   -- 0..20; squares pills, halves specific corners
+Library:SetDPIScale(100)    -- percent; scales the whole UI via Library.Scales
+```
+
+`Window:SetCornerRadius` updates every registered corner in one pass: full corners follow
+the radius, "half" corners follow half of it, and pill corners round or square as above.
+
+## Scheme.BlueColor
 
 This fork adds one scheme colour, used for the footer highlight and available to your own
 elements:

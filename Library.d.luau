@@ -125,6 +125,15 @@ export type WatermarkSegment = {
     Text: (string | () -> string)?,
     Icon: string?,
     Accent: boolean?,
+    -- Renders a rounded avatar bust ("player card") ahead of the label.
+    -- Accepts a Player instance, a UserId, or a username; when omitted and
+    -- PlayerCard is true, the local player is used. If Text is not supplied,
+    -- the label defaults to the resolved player's display name.
+    Player: (Player | number | string)?,
+    PlayerCard: boolean?,
+    -- Which name to auto-fill when Text is omitted: "Display" (default) uses the
+    -- display name, "Username"/"Name" uses the account name.
+    NameType: string?,
 }
 
 export type Watermark = {
@@ -1060,7 +1069,7 @@ export type Window = {
     HideTabInfo: (self: Window) -> (),
     AddTab: (
         self: Window,
-        Info: { Name: string, Icon: string?, Description: string?, Order: number? } | string,
+        Info: { Name: string, Icon: string?, Description: string?, Order: number?, Layout: (string | number)?, SingleColumn: boolean?, Tooltip: string?, DisabledTooltip: string? } | string,
         Icon: string?,
         Description: string?,
         Order: number?
@@ -1145,12 +1154,6 @@ export type Library = {
     NotificationBell: TextButton?,
     NotificationBellMini: TextButton?,
     NotificationTypeColors: { [string]: Color3 },
-    EnabledFeaturesFrame: CanvasGroup?,
-    EnabledFeaturesContainer: ScrollingFrame?,
-    EnabledFeaturesButton: TextButton?,
-    EnabledFeaturesButtonMini: TextButton?,
-    EnabledFeaturesOpen: boolean,
-    EnabledFeaturesRestPos: UDim2?,
     ToggleKeybind: Enum.KeyCode,
     TweenInfo: TweenInfo,
     NotifyTweenInfo: TweenInfo,
@@ -1293,7 +1296,7 @@ export type Library = {
         List: number?,
         ActiveCallback: ((boolean) -> ())?
     ) -> ContextMenu,
-    AddTooltip: (self: Library, InfoStr: string, DisabledInfoStr: string, HoverInstance: GuiObject) -> Tooltip,
+    AddTooltip: (self: Library, InfoStr: string, DisabledInfoStr: string, HoverInstance: GuiObject, Variant: string?) -> Tooltip,
     OnUnload: (self: Library, Callback: () -> ()) -> (),
     Unload: (self: Library) -> (),
     SetIconModule: (self: Library, module: any) -> (),
@@ -1327,9 +1330,6 @@ export type Library = {
     UpdateNotificationBadge: (self: Library) -> (),
     SetNotificationHistoryVisible: (self: Library, Visible: boolean) -> (),
     ToggleNotificationHistory: (self: Library) -> (),
-    RefreshEnabledFeatures: (self: Library) -> (),
-    SetEnabledFeaturesVisible: (self: Library, Visible: boolean) -> (),
-    ToggleEnabledFeatures: (self: Library) -> (),
     CreateLoading: (self: Library, LoadingInfo: LoadingInfo) -> Loading,
     CreateWindow: (
         self: Library,
