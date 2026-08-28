@@ -3870,15 +3870,20 @@ function Library:AddContextMenu(
         Menu.Parent = nil
         Menu.Parent = TargetParent
 
+        --// Menu.Position is relative to TargetParent, but Holder.AbsolutePosition
+        --// is screen-absolute. Subtract the parent's own AbsolutePosition so the
+        --// menu lands under the holder even when the parent is inset-shifted
+        --// (e.g. the Overlay sits at a negative Y from the GUI inset).
+        local ParentAbs = TargetParent.AbsolutePosition
         if typeof(Offset) == "function" then
             Menu.Position = UDim2.fromOffset(
-                math.floor(Holder.AbsolutePosition.X + Offset()[1]),
-                math.floor(Holder.AbsolutePosition.Y + Offset()[2])
+                math.floor(Holder.AbsolutePosition.X - ParentAbs.X + Offset()[1]),
+                math.floor(Holder.AbsolutePosition.Y - ParentAbs.Y + Offset()[2])
             )
         else
             Menu.Position = UDim2.fromOffset(
-                math.floor(Holder.AbsolutePosition.X + Offset[1]),
-                math.floor(Holder.AbsolutePosition.Y + Offset[2])
+                math.floor(Holder.AbsolutePosition.X - ParentAbs.X + Offset[1]),
+                math.floor(Holder.AbsolutePosition.Y - ParentAbs.Y + Offset[2])
             )
         end
 
@@ -3931,15 +3936,16 @@ function Library:AddContextMenu(
         end
 
         Table.Signal = Holder:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+            local ParentAbs = TargetParent.AbsolutePosition
             if typeof(Offset) == "function" then
                 Menu.Position = UDim2.fromOffset(
-                    math.floor(Holder.AbsolutePosition.X + Offset()[1]),
-                    math.floor(Holder.AbsolutePosition.Y + Offset()[2])
+                    math.floor(Holder.AbsolutePosition.X - ParentAbs.X + Offset()[1]),
+                    math.floor(Holder.AbsolutePosition.Y - ParentAbs.Y + Offset()[2])
                 )
             else
                 Menu.Position = UDim2.fromOffset(
-                    math.floor(Holder.AbsolutePosition.X + Offset[1]),
-                    math.floor(Holder.AbsolutePosition.Y + Offset[2])
+                    math.floor(Holder.AbsolutePosition.X - ParentAbs.X + Offset[1]),
+                    math.floor(Holder.AbsolutePosition.Y - ParentAbs.Y + Offset[2])
                 )
             end
 
