@@ -588,6 +588,27 @@ local Templates = {
         Disabled = false,
         Visible = true,
     },
+    PriorityDropdown = {
+        Values = {},
+
+        --// Initial priority order; defaults to the order of Values
+        Default = {},
+
+        MaxVisibleDropdownItems = 8,
+        Searchable = true,
+
+        --// Adds a button that opens the list in a large panel over the window
+        Expandable = true,
+
+        --// Optional per value display formatter
+        FormatDisplayValue = nil,
+
+        Callback = function() end,
+        Changed = function() end,
+
+        Disabled = false,
+        Visible = true,
+    },
     Viewport = {
         Object = nil,
         Camera = nil,
@@ -10643,6 +10664,1233 @@ do
         return Dropdown
     end
 
+    --// A dropdown you don't select in — you drag values above and below each
+    --// other to set their priority. The opened panel is a re-orderable list;
+    --// Value is the ordered array (highest priority first). Searchable too.
+    function Funcs:AddPriorityDropdown(Idx, Info)
+        if self.Destroyed then return nil end
+
+        Info = Library:Validate(Info, Templates.PriorityDropdown)
+
+        local Groupbox = self
+        local Container = Groupbox.Container
+
+        local Priority = {
+            Connections = {},
+            Destroyed = false,
+
+            Text = typeof(Info.Text) == "string" and Info.Text or nil,
+
+            --// Ordered array, highest priority first
+            Value = {},
+            Values = Info.Values,
+
+            FormatDisplayValue = Info.FormatDisplayValue,
+
+            Tooltip = Info.Tooltip,
+            DisabledTooltip = Info.DisabledTooltip,
+            TooltipTable = nil,
+
+            Callback = Info.Callback,
+            Changed = Info.Changed,
+
+            Disabled = Info.Disabled,
+            Visible = Info.Visible,
+
+            Type = "PriorityDropdown",
+        }
+
+        local Holder = New("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, Priority.Text and 39 or 21),
+            Visible = Priority.Visible,
+            Parent = Container,
+        })
+
+        local Label = New("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 14),
+            Text = Priority.Text,
+            TextSize = 14,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Visible = not not Info.Text,
+            ZIndex = 3,
+            Parent = Holder,
+        })
+
+        local DisplayContainer = New("TextButton", {
+            AnchorPoint = Vector2.new(0, 1),
+            BackgroundColor3 = "MainColor",
+            Position = UDim2.fromScale(0, 1),
+            Size = UDim2.new(1, 0, 0, 21),
+            Text = "",
+            TextTransparency = 1,
+            ZIndex = 2,
+            Parent = Holder,
+        })
+
+        New("UIPadding", {
+            PaddingLeft = UDim.new(0, 8),
+            PaddingRight = UDim.new(0, 4),
+            Parent = DisplayContainer,
+        })
+
+        local DisplayStroke = New("UIStroke", {
+            Color = "OutlineColor",
+            Parent = DisplayContainer,
+        })
+
+        local DropdownCorner = New("UICorner", {
+            TopLeftRadius = UDim.new(0, Library.CornerRadius / 2),
+            TopRightRadius = UDim.new(0, Library.CornerRadius / 2),
+            BottomRightRadius = UDim.new(0, Library.CornerRadius / 2),
+            BottomLeftRadius = UDim.new(0, Library.CornerRadius / 2),
+            Parent = DisplayContainer,
+        }); table.insert(Library.SpecificCorners, DropdownCorner)
+
+        local DisplayButton = New("TextButton", {
+            Active = not Priority.Disabled,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 21),
+            Text = "---",
+            TextSize = 14,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 2,
+            Parent = DisplayContainer,
+        })
+
+        local ArrowImage = New("ImageLabel", {
+            AnchorPoint = Vector2.new(1, 0.5),
+            ImageColor3 = "FontColor",
+            ImageTransparency = 0.5,
+            Position = UDim2.fromScale(1, 0.5),
+            Size = UDim2.fromOffset(16, 16),
+            Parent = DisplayContainer,
+        })
+        if ArrowIcon then
+            Library:ApplyLucideIcon(ArrowImage, ArrowIcon)
+        end
+
+        --// Opens the whole list in a panel over the window for easier ranking
+        local ExpandButton
+        local ExpandIconImage
+        if Info.Expandable ~= false then
+            local ExpandIcon = Library:GetIcon("maximize-2")
+
+            ExpandButton = New("TextButton", {
+                AnchorPoint = Vector2.new(1, 0.5),
+                BackgroundTransparency = 1,
+                Position = UDim2.new(1, -18, 0.5, 0),
+                Size = UDim2.fromOffset(16, 16),
+                Text = "",
+                ZIndex = 3,
+                Parent = DisplayContainer,
+            })
+            ExpandIconImage = New("ImageLabel", {
+                Image = ExpandIcon and ExpandIcon.Url or "",
+                ImageColor3 = "FontColor",
+                ImageRectOffset = ExpandIcon and ExpandIcon.ImageRectOffset or Vector2.zero,
+                ImageRectSize = ExpandIcon and ExpandIcon.ImageRectSize or Vector2.zero,
+                ImageTransparency = 0.5,
+                ScaleType = Enum.ScaleType.Fit,
+                Size = UDim2.fromScale(1, 1),
+                ZIndex = 3,
+                Parent = ExpandButton,
+            })
+
+            ExpandButton.MouseEnter:Connect(function()
+                if Priority.Disabled then return end
+                TweenService:Create(ExpandIconImage, Library.TweenInfo, { ImageTransparency = 0 }):Play()
+            end)
+            ExpandButton.MouseLeave:Connect(function()
+                if Priority.Disabled then return end
+                TweenService:Create(ExpandIconImage, Library.TweenInfo, { ImageTransparency = 0.5 }):Play()
+            end)
+
+            Library:AddTooltip("Expand", nil, ExpandButton)
+        end
+
+        local SearchBox
+        if Info.Searchable then
+            SearchBox = New("TextBox", {
+                BackgroundTransparency = 1,
+                PlaceholderText = "Search...",
+                Position = UDim2.fromOffset(-8, 0),
+                Size = UDim2.new(1, ExpandButton and -34 or -12, 1, 0),
+                TextSize = 14,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Visible = false,
+                Parent = DisplayButton,
+            })
+            New("UIPadding", {
+                PaddingLeft = UDim.new(0, 8),
+                Parent = SearchBox,
+            })
+
+            table.insert(Priority.Connections, SearchBox.Focused:Connect(function()
+                Library.Registry[DisplayStroke].Color = "AccentColor"
+                TweenService:Create(DisplayStroke, Library.TweenInfo, {
+                    Color = Library.Scheme.AccentColor,
+                }):Play()
+            end))
+
+            table.insert(Priority.Connections, SearchBox.FocusLost:Connect(function()
+                Library.Registry[DisplayStroke].Color = "OutlineColor"
+                TweenService:Create(DisplayStroke, Library.TweenInfo, {
+                    Color = Library.Scheme.OutlineColor,
+                }):Play()
+            end))
+        end
+
+        local ItemHeight = 24
+
+        local MenuTable
+        MenuTable = Library:AddContextMenu(
+            DisplayContainer,
+            function()
+                return UDim2.fromOffset((DisplayContainer.AbsoluteSize.X / Library.DPIScale), 0)
+            end,
+            function()
+                return { 0.5, DisplayContainer.AbsoluteSize.Y + 1.5 }
+            end,
+            2,
+            function(Active: boolean)
+                DisplayButton.TextTransparency = (Active and SearchBox) and 1 or 0
+
+                ArrowImage.ImageTransparency = Active and 0 or 0.5
+                ArrowImage.Rotation = Active and 180 or 0
+
+                if SearchBox then
+                    SearchBox.Text = ""
+                    SearchBox.Visible = Active
+                end
+
+                local Half = UDim.new(0, Library.CornerRadius / 2)
+                local Zero = UDim.new(0, 0)
+
+                DropdownCorner.BottomRightRadius = Active and Zero or Half
+                DropdownCorner.BottomLeftRadius = Active and Zero or Half
+
+                local MenuCorner = MenuTable and MenuTable.Corner
+                if MenuCorner then
+                    MenuCorner.TopLeftRadius = Zero
+                    MenuCorner.TopRightRadius = Zero
+                    MenuCorner.BottomRightRadius = Half
+                    MenuCorner.BottomLeftRadius = Half
+                end
+            end,
+            false,
+            "bottom",
+            "Dropdown"
+        )
+        Priority.Menu = MenuTable
+
+        local GripIcon = Library:GetIcon("grip-vertical") or Library:GetIcon("menu")
+        local RowByValue = {}
+        local RowList = {}
+
+        local function FormatValue(Value)
+            return tostring(Info.FormatDisplayValue and Info.FormatDisplayValue(Value) or Value)
+        end
+
+        function Priority:RunChanged()
+            Library:SafeCallback(Priority.Callback, Priority.Value)
+            Library:SafeCallback(Priority.Changed, Priority.Value)
+        end
+
+        function Priority:GetValue()
+            local Copy = {}
+            for _, Value in Priority.Value do
+                table.insert(Copy, Value)
+            end
+            return Copy
+        end
+
+        function Priority:Display()
+            if Library.Unloaded then
+                return
+            end
+
+            local Top = Priority.Value[1]
+            local Str = Top ~= nil and FormatValue(Top) or ""
+
+            if Str ~= "" and #Priority.Value > 1 then
+                Str = Str .. string.format("  (+%d)", #Priority.Value - 1)
+            end
+
+            if #Str > 25 then
+                Str = Str:sub(1, 22) .. "..."
+            end
+
+            DisplayButton.Text = (Str == "" and "---" or Str)
+        end
+
+        function Priority:UpdateColors()
+            if Library.Unloaded then
+                return
+            end
+
+            Label.TextTransparency = Priority.Disabled and 0.8 or 0
+            DisplayButton.TextTransparency = Priority.Disabled and 0.8 or 0
+            ArrowImage.ImageTransparency = Priority.Disabled and 0.8 or MenuTable.Active and 0 or 0.5
+
+            if ExpandIconImage then
+                ExpandIconImage.ImageTransparency = Priority.Disabled and 0.8 or 0.5
+            end
+        end
+
+        function Priority:RecalculateListSize(Count)
+            local ItemCount = Count or #Priority.Value
+            local Y = math.clamp(ItemCount * ItemHeight, 0, Info.MaxVisibleDropdownItems * ItemHeight)
+
+            MenuTable.Menu.CanvasSize = UDim2.fromOffset(0, ItemCount * ItemHeight)
+            MenuTable:SetSize(function()
+                return UDim2.fromOffset((DisplayContainer.AbsoluteSize.X / Library.DPIScale), Y)
+            end)
+        end
+
+        local Dragging = false
+        local DragValue = nil
+        local DragConns = {}
+
+        local function StopDrag()
+            Dragging = false
+            DragValue = nil
+
+            for _, Conn in DragConns do
+                Conn:Disconnect()
+            end
+            table.clear(DragConns)
+        end
+
+        --// Lay out every visible row by a running counter so a search filter
+        --// packs the matches together; the number badge still shows the real
+        --// priority. Pass a value to leave alone (the row being dragged).
+        local function Relayout(SkipValue, Animate)
+            local Search = (not Dragging) and SearchBox and NormalizeSearch(SearchBox.Text:lower()) or ""
+            local Searching = Search ~= ""
+            local VisibleCount = 0
+
+            for Index, Value in Priority.Value do
+                local Row = RowByValue[Value]
+                if not Row then
+                    continue
+                end
+
+                local Match = true
+                if Searching then
+                    Match = FuzzyScore(FormatValue(Value):lower(), Search)
+                end
+
+                Row.Index = Index
+                Row.NumberLabel.Text = tostring(Index)
+                Row.Container.Visible = Match
+                Row.Button.Active = not Searching and not Priority.Disabled
+
+                if not Match then
+                    continue
+                end
+
+                VisibleCount += 1
+
+                if Value ~= SkipValue then
+                    local Target = UDim2.fromOffset(0, (VisibleCount - 1) * ItemHeight)
+                    if Animate then
+                        TweenService:Create(Row.Container, Library.TweenInfo, { Position = Target }):Play()
+                    else
+                        Row.Container.Position = Target
+                    end
+                end
+            end
+
+            Priority:RecalculateListSize(VisibleCount)
+        end
+
+        --// Shared drag-to-reorder core. `View` wires it to whichever list is on
+        --// screen (the inline menu or the expanded panel): both mutate the same
+        --// Priority.Value, so a drag in one is a drag in the other. Works with
+        --// mouse or touch, follows the pointer, clamps to the canvas, and
+        --// auto-scrolls when the pointer nears an edge.
+        local function BeginDrag(View, StartInput, Value)
+            if Priority.Disabled or Dragging or View.Searching() then
+                return
+            end
+            if not IsMouseInput(StartInput) then
+                return
+            end
+
+            local Row = View.RowByValue[Value]
+            if not Row then
+                return
+            end
+
+            Dragging = true
+            DragValue = Value
+
+            local Scroll = View.Scroll
+            local ItemH = View.ItemH
+            local Container = Row.Container
+            local DPI = Library.DPIScale
+
+            --// Lift the grabbed row above its siblings (ZIndex is Siblings mode,
+            --// so its children need bumping too). Restored on release.
+            local ZBump = {}
+            local function Bump(Obj)
+                ZBump[Obj] = Obj.ZIndex
+                Obj.ZIndex = Obj.ZIndex + 60
+            end
+            Bump(Container)
+            for _, D in ipairs(Container:GetDescendants()) do
+                if D:IsA("GuiObject") then
+                    Bump(D)
+                end
+            end
+            TweenService:Create(Container, Library.TweenInfo, { BackgroundTransparency = 0.6 }):Play()
+
+            --// Where inside the row the pointer grabbed it (real pixels)
+            local GrabOffsetPx = StartInput.Position.Y - Container.AbsolutePosition.Y
+            local PointerY = StartInput.Position.Y
+
+            local function Update()
+                local Top = Scroll.AbsolutePosition.Y
+                --// Map the pointer into canvas space, honouring the scroll offset
+                local VisY = ((PointerY - Top) + Scroll.CanvasPosition.Y - GrabOffsetPx) / DPI
+                VisY = math.clamp(VisY, 0, math.max(0, (#Priority.Value - 1) * ItemH))
+                Container.Position = UDim2.fromOffset(0, VisY)
+
+                local Target = math.clamp(math.floor(VisY / ItemH + 0.5) + 1, 1, #Priority.Value)
+                local Current = table.find(Priority.Value, DragValue)
+                if Current and Current ~= Target then
+                    table.remove(Priority.Value, Current)
+                    table.insert(Priority.Value, Target, DragValue)
+                    View.Relayout(DragValue, true)
+                end
+            end
+
+            --// Keep the pointer inside the visible window by scrolling the canvas
+            local function AutoScroll()
+                local WindowH = Scroll.AbsoluteSize.Y
+                local CanvasH = Scroll.AbsoluteCanvasSize.Y
+                if CanvasH <= WindowH then
+                    return
+                end
+
+                local Top = Scroll.AbsolutePosition.Y
+                local Edge = 26 * DPI
+                local Speed = 9 * DPI
+                local Delta = 0
+
+                if PointerY < Top + Edge then
+                    Delta = -Speed
+                elseif PointerY > Top + WindowH - Edge then
+                    Delta = Speed
+                end
+
+                if Delta ~= 0 then
+                    local NewY = math.clamp(Scroll.CanvasPosition.Y + Delta, 0, CanvasH - WindowH)
+                    Scroll.CanvasPosition = Vector2.new(0, NewY)
+                end
+            end
+
+            Update()
+
+            table.insert(DragConns, Library:GiveSignal(UserInputService.InputChanged:Connect(function(ChangeInput)
+                if not IsMovementInput(ChangeInput) and ChangeInput ~= StartInput then
+                    return
+                end
+                PointerY = ChangeInput.Position.Y
+            end)))
+
+            --// A steady heartbeat drives edge scrolling even while the pointer
+            --// is held still at the boundary
+            table.insert(DragConns, Library:GiveSignal(RunService.RenderStepped:Connect(function()
+                AutoScroll()
+                Update()
+            end)))
+
+            table.insert(DragConns, Library:GiveSignal(UserInputService.InputEnded:Connect(function(EndInput)
+                if EndInput ~= StartInput and not (IsMouseInput(EndInput) and EndInput.UserInputType == StartInput.UserInputType) then
+                    return
+                end
+
+                for Obj, Z in ZBump do
+                    Obj.ZIndex = Z
+                end
+                TweenService:Create(Container, Library.TweenInfo, { BackgroundTransparency = 1 }):Play()
+
+                StopDrag()
+                View.Relayout(nil, true)
+                Priority:Display()
+                Priority:RunChanged()
+            end)))
+        end
+
+        local InlineView = {
+            RowByValue = RowByValue,
+            Scroll = MenuTable.Menu,
+            ItemH = ItemHeight,
+            Relayout = Relayout,
+            Searching = function()
+                return SearchBox ~= nil and NormalizeSearch(SearchBox.Text:lower()) ~= ""
+            end,
+        }
+
+        local function CreateRow(Value)
+            local Row = { Value = Value, Index = 0 }
+
+            local Container = New("Frame", {
+                BackgroundColor3 = "MainColor",
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, ItemHeight),
+                Parent = MenuTable.Menu,
+            })
+
+            --// The whole row is the drag surface (grab it anywhere). Sits behind
+            --// the labels, which are plain TextLabels and never steal the input.
+            local Button = New("TextButton", {
+                Active = true,
+                AutoButtonColor = false,
+                BackgroundTransparency = 1,
+                Size = UDim2.fromScale(1, 1),
+                Text = "",
+                Parent = Container,
+            })
+
+            local GripImage = New("ImageLabel", {
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                ImageColor3 = "FontColor",
+                ImageTransparency = 0.6,
+                Position = UDim2.new(0, 12, 0.5, 0),
+                Size = UDim2.fromOffset(14, 14),
+                Parent = Container,
+            })
+            if GripIcon then
+                Library:ApplyLucideIcon(GripImage, GripIcon)
+            else
+                GripImage.Visible = false
+            end
+
+            local NumberLabel = New("TextLabel", {
+                BackgroundTransparency = 1,
+                Position = UDim2.fromOffset(24, 0),
+                Size = UDim2.fromOffset(20, ItemHeight),
+                Text = "1",
+                TextSize = 13,
+                TextTransparency = 0.4,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = Container,
+            })
+
+            local ValueLabel = New("TextLabel", {
+                BackgroundTransparency = 1,
+                Position = UDim2.fromOffset(46, 0),
+                Size = UDim2.new(1, -52, 0, ItemHeight),
+                Text = FormatValue(Value),
+                TextSize = 14,
+                TextTransparency = 0.35,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = Container,
+            })
+
+            Row.Container = Container
+            Row.Button = Button
+            Row.GripImage = GripImage
+            Row.NumberLabel = NumberLabel
+            Row.ValueLabel = ValueLabel
+
+            Button.MouseEnter:Connect(function()
+                if not Button.Active or (Dragging and DragValue == Row.Value) then return end
+                TweenService:Create(GripImage, Library.TweenInfo, { ImageTransparency = 0.1 }):Play()
+                TweenService:Create(Container, Library.TweenInfo, { BackgroundTransparency = 0.9 }):Play()
+            end)
+            Button.MouseLeave:Connect(function()
+                if Dragging and DragValue == Row.Value then return end
+                TweenService:Create(GripImage, Library.TweenInfo, { ImageTransparency = 0.6 }):Play()
+                TweenService:Create(Container, Library.TweenInfo, { BackgroundTransparency = 1 }):Play()
+            end)
+
+            Button.InputBegan:Connect(function(StartInput)
+                BeginDrag(InlineView, StartInput, Row.Value)
+            end)
+
+            RowByValue[Value] = Row
+            table.insert(RowList, Row)
+            return Row
+        end
+
+        local function ClearRows()
+            StopDrag()
+            for _, Row in RowList do
+                Row.Container:Destroy()
+            end
+            table.clear(RowList)
+            table.clear(RowByValue)
+        end
+
+        function Priority:BuildList()
+            ClearRows()
+
+            for _, Value in Priority.Value do
+                CreateRow(Value)
+            end
+
+            MenuTable.Menu.CanvasPosition = Vector2.new(0, 0)
+            Relayout(nil, false)
+
+            if Priority._RefreshExpanded then
+                Priority._RefreshExpanded()
+            end
+        end
+
+        --// Expanded Panel — the same ranked list in a big overlay for easier
+        --// management (taller rows, easy to drag on mobile). Same Priority.Value
+        --// underneath, so the inline menu and the panel are always in sync.
+        local ExpandItemHeight = 34
+        local ExpandRowByValue = {}
+        local ExpandRowList = {}
+
+        local ExpandOverlay
+        local ExpandFrame
+        local ExpandScale
+        local ExpandList
+        local ExpandSearchBox
+        local ExpandEmptyLabel
+        local Expanded = false
+        local ExpandFadeTween, ExpandScaleTween
+
+        local function RelayoutExpand(SkipValue, Animate)
+            if not ExpandList then
+                return
+            end
+
+            local Search = (not Dragging) and ExpandSearchBox and NormalizeSearch(ExpandSearchBox.Text:lower()) or ""
+            local Searching = Search ~= ""
+            local VisibleCount = 0
+
+            for Index, Value in Priority.Value do
+                local Row = ExpandRowByValue[Value]
+                if not Row then
+                    continue
+                end
+
+                local Match = true
+                if Searching then
+                    Match = FuzzyScore(FormatValue(Value):lower(), Search)
+                end
+
+                Row.Index = Index
+                Row.NumberLabel.Text = tostring(Index)
+                Row.Container.Visible = Match
+                Row.Button.Active = not Searching and not Priority.Disabled
+
+                if not Match then
+                    continue
+                end
+
+                VisibleCount += 1
+
+                if Value ~= SkipValue then
+                    local Target = UDim2.fromOffset(0, (VisibleCount - 1) * ExpandItemHeight)
+                    if Animate then
+                        TweenService:Create(Row.Container, Library.TweenInfo, { Position = Target }):Play()
+                    else
+                        Row.Container.Position = Target
+                    end
+                end
+            end
+
+            ExpandList.CanvasSize = UDim2.fromOffset(0, VisibleCount * ExpandItemHeight)
+            if ExpandEmptyLabel then
+                ExpandEmptyLabel.Visible = VisibleCount == 0
+            end
+        end
+
+        local ExpandView = {
+            RowByValue = ExpandRowByValue,
+            Scroll = nil, --// set once ExpandList exists
+            ItemH = ExpandItemHeight,
+            Relayout = RelayoutExpand,
+            Searching = function()
+                return ExpandSearchBox ~= nil and NormalizeSearch(ExpandSearchBox.Text:lower()) ~= ""
+            end,
+        }
+
+        local function CreateExpandRow(Value)
+            local Row = { Value = Value, Index = 0 }
+
+            local Container = New("Frame", {
+                BackgroundColor3 = "MainColor",
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, ExpandItemHeight - 4),
+                Parent = ExpandList,
+            })
+            table.insert(
+                Library.Corners,
+                New("UICorner", {
+                    CornerRadius = UDim.new(0, Library.CornerRadius / 2),
+                    Parent = Container,
+                })
+            )
+            local Stroke = New("UIStroke", {
+                Color = "OutlineColor",
+                Transparency = 0.6,
+                Parent = Container,
+            })
+
+            local Button = New("TextButton", {
+                Active = true,
+                AutoButtonColor = false,
+                BackgroundTransparency = 1,
+                Size = UDim2.fromScale(1, 1),
+                Text = "",
+                Parent = Container,
+            })
+
+            local GripImage = New("ImageLabel", {
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                ImageColor3 = "FontColor",
+                ImageTransparency = 0.55,
+                Position = UDim2.new(0, 16, 0.5, 0),
+                Size = UDim2.fromOffset(16, 16),
+                Parent = Container,
+            })
+            if GripIcon then
+                Library:ApplyLucideIcon(GripImage, GripIcon)
+            else
+                GripImage.Visible = false
+            end
+
+            local NumberLabel = New("TextLabel", {
+                BackgroundTransparency = 1,
+                Position = UDim2.fromOffset(32, 0),
+                Size = UDim2.new(0, 26, 1, 0),
+                Text = "1",
+                TextSize = 14,
+                TextTransparency = 0.4,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = Container,
+            })
+
+            local ValueLabel = New("TextLabel", {
+                BackgroundTransparency = 1,
+                Position = UDim2.fromOffset(62, 0),
+                Size = UDim2.new(1, -70, 1, 0),
+                Text = FormatValue(Value),
+                TextSize = 15,
+                TextTransparency = 0.25,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = Container,
+            })
+
+            Row.Container = Container
+            Row.Button = Button
+            Row.GripImage = GripImage
+            Row.NumberLabel = NumberLabel
+            Row.ValueLabel = ValueLabel
+            Row.Stroke = Stroke
+
+            Button.MouseEnter:Connect(function()
+                if not Button.Active or (Dragging and DragValue == Row.Value) then return end
+                TweenService:Create(Container, Library.TweenInfo, { BackgroundTransparency = 0.85 }):Play()
+                TweenService:Create(GripImage, Library.TweenInfo, { ImageTransparency = 0.1 }):Play()
+            end)
+            Button.MouseLeave:Connect(function()
+                if Dragging and DragValue == Row.Value then return end
+                TweenService:Create(Container, Library.TweenInfo, { BackgroundTransparency = 1 }):Play()
+                TweenService:Create(GripImage, Library.TweenInfo, { ImageTransparency = 0.55 }):Play()
+            end)
+
+            Button.InputBegan:Connect(function(StartInput)
+                BeginDrag(ExpandView, StartInput, Row.Value)
+            end)
+
+            ExpandRowByValue[Value] = Row
+            table.insert(ExpandRowList, Row)
+            return Row
+        end
+
+        local function RebuildExpandedRows()
+            if not ExpandList then
+                return
+            end
+
+            for _, Row in ExpandRowList do
+                Row.Container:Destroy()
+            end
+            table.clear(ExpandRowList)
+            table.clear(ExpandRowByValue)
+
+            for _, Value in Priority.Value do
+                CreateExpandRow(Value)
+            end
+
+            RelayoutExpand(nil, false)
+        end
+        Priority._RefreshExpanded = RebuildExpandedRows
+
+        local function BuildExpandedPanel()
+            if ExpandOverlay then
+                return
+            end
+
+            local Parent = Library.MainFrame
+            if not Parent then
+                return
+            end
+
+            ExpandOverlay = New("TextButton", {
+                AutoButtonColor = false,
+                BackgroundColor3 = "DarkColor",
+                BackgroundTransparency = 1,
+                Size = UDim2.fromScale(1, 1),
+                Text = "",
+                Visible = false,
+                ZIndex = 8000,
+                Parent = Parent,
+            })
+            table.insert(
+                Library.Corners,
+                New("UICorner", {
+                    CornerRadius = UDim.new(0, Library.CornerRadius),
+                    Parent = ExpandOverlay,
+                })
+            )
+
+            ExpandFrame = New("TextButton", {
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                AutoButtonColor = false,
+                BackgroundColor3 = "BackgroundColor",
+                Position = UDim2.fromScale(0.5, 0.5),
+                Size = UDim2.new(0.6, 0, 0.68, 0),
+                Text = "",
+                ZIndex = 8001,
+                Parent = ExpandOverlay,
+            })
+            table.insert(
+                Library.Corners,
+                New("UICorner", {
+                    CornerRadius = UDim.new(0, Library.CornerRadius),
+                    Parent = ExpandFrame,
+                })
+            )
+            Library:AddOutline(ExpandFrame)
+
+            ExpandScale = New("UIScale", { Scale = 1, Parent = ExpandFrame })
+
+            --// Header
+            local Header = New("Frame", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, 34),
+                Parent = ExpandFrame,
+            })
+            Library:MakeLine(Header, {
+                AnchorPoint = Vector2.new(0, 1),
+                Position = UDim2.fromScale(0, 1),
+                Size = UDim2.new(1, 0, 0, 1),
+            })
+            New("TextLabel", {
+                BackgroundTransparency = 1,
+                Position = UDim2.fromOffset(12, 0),
+                Size = UDim2.new(1, -56, 1, 0),
+                Text = (Priority.Text or "Priority") .. "  —  drag to rank",
+                TextSize = 15,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = Header,
+            })
+
+            local CloseIcon = Library:GetIcon("x")
+            local CloseButton = New("TextButton", {
+                AnchorPoint = Vector2.new(1, 0.5),
+                BackgroundColor3 = "MainColor",
+                BackgroundTransparency = 1,
+                Position = UDim2.new(1, -8, 0.5, 0),
+                Size = UDim2.fromOffset(24, 24),
+                Text = "",
+                Parent = Header,
+            })
+            table.insert(
+                Library.Corners,
+                New("UICorner", {
+                    CornerRadius = UDim.new(0, Library.CornerRadius / 2),
+                    Parent = CloseButton,
+                })
+            )
+            New("UIPadding", {
+                PaddingBottom = UDim.new(0, 4),
+                PaddingLeft = UDim.new(0, 4),
+                PaddingRight = UDim.new(0, 4),
+                PaddingTop = UDim.new(0, 4),
+                Parent = CloseButton,
+            })
+            New("ImageLabel", {
+                Image = CloseIcon and CloseIcon.Url or "",
+                ImageColor3 = "FontColor",
+                ImageRectOffset = CloseIcon and CloseIcon.ImageRectOffset or Vector2.zero,
+                ImageRectSize = CloseIcon and CloseIcon.ImageRectSize or Vector2.zero,
+                ImageTransparency = 0.4,
+                ScaleType = Enum.ScaleType.Fit,
+                Size = UDim2.fromScale(1, 1),
+                Parent = CloseButton,
+            })
+            CloseButton.MouseEnter:Connect(function()
+                TweenService:Create(CloseButton, Library.TweenInfo, { BackgroundTransparency = 0 }):Play()
+            end)
+            CloseButton.MouseLeave:Connect(function()
+                TweenService:Create(CloseButton, Library.TweenInfo, { BackgroundTransparency = 1 }):Play()
+            end)
+            CloseButton.MouseButton1Click:Connect(function()
+                Priority:Collapse()
+            end)
+
+            --// Search
+            local ListTop = 34
+            if Info.Searchable then
+                ListTop = 34 + 38
+
+                ExpandSearchBox = New("TextBox", {
+                    BackgroundColor3 = "MainColor",
+                    PlaceholderText = "Search...",
+                    Position = UDim2.fromOffset(10, 42),
+                    Size = UDim2.new(1, -20, 0, 26),
+                    Text = "",
+                    TextSize = 14,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Parent = ExpandFrame,
+                })
+                table.insert(
+                    Library.PillCorners,
+                    New("UICorner", {
+                        CornerRadius = Library.CornerRadius > 0 and UDim.new(1, 0) or UDim.new(0, 0),
+                        Parent = ExpandSearchBox,
+                    })
+                )
+                New("UIPadding", {
+                    PaddingLeft = UDim.new(0, 32),
+                    PaddingRight = UDim.new(0, 12),
+                    Parent = ExpandSearchBox,
+                })
+                New("UIStroke", { Color = "OutlineColor", Parent = ExpandSearchBox })
+
+                local SearchIcon = Library:GetIcon("search")
+                New("ImageLabel", {
+                    AnchorPoint = Vector2.new(0, 0.5),
+                    Image = SearchIcon and SearchIcon.Url or "",
+                    ImageColor3 = "FontColor",
+                    ImageRectOffset = SearchIcon and SearchIcon.ImageRectOffset or Vector2.zero,
+                    ImageRectSize = SearchIcon and SearchIcon.ImageRectSize or Vector2.zero,
+                    ImageTransparency = 0.4,
+                    Position = UDim2.new(0, -22, 0.5, 0),
+                    ScaleType = Enum.ScaleType.Fit,
+                    Size = UDim2.fromOffset(15, 15),
+                    Parent = ExpandSearchBox,
+                })
+
+                table.insert(
+                    Priority.Connections,
+                    ExpandSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+                        RelayoutExpand(nil, false)
+                    end)
+                )
+            end
+
+            ExpandList = New("ScrollingFrame", {
+                AutomaticCanvasSize = Enum.AutomaticSize.None,
+                BackgroundTransparency = 1,
+                CanvasSize = UDim2.fromScale(0, 0),
+                Position = UDim2.fromOffset(10, ListTop),
+                ScrollBarImageColor3 = "OutlineColor",
+                ScrollBarThickness = 3,
+                Size = UDim2.new(1, -20, 1, -ListTop - 10),
+                Parent = ExpandFrame,
+            })
+            ExpandView.Scroll = ExpandList
+
+            ExpandEmptyLabel = New("TextLabel", {
+                BackgroundTransparency = 1,
+                Position = UDim2.fromOffset(0, ListTop + 14),
+                Size = UDim2.new(1, 0, 0, 16),
+                Text = "No matching values",
+                TextSize = 14,
+                TextTransparency = 0.5,
+                Visible = false,
+                Parent = ExpandFrame,
+            })
+
+            ExpandOverlay.MouseButton1Click:Connect(function()
+                Priority:Collapse()
+            end)
+        end
+
+        local function StopExpandTweens()
+            if ExpandFadeTween then
+                StopTween(ExpandFadeTween, true)
+                ExpandFadeTween = nil
+            end
+            if ExpandScaleTween then
+                StopTween(ExpandScaleTween, true)
+                ExpandScaleTween = nil
+            end
+        end
+
+        function Priority:Expand()
+            if Priority.Disabled or Info.Expandable == false or Expanded then
+                return
+            end
+
+            BuildExpandedPanel()
+            if not ExpandOverlay then
+                return
+            end
+
+            if Library.ActiveExpandedDropdown and Library.ActiveExpandedDropdown ~= Priority then
+                Library.ActiveExpandedDropdown:Collapse()
+            end
+
+            MenuTable:Close()
+
+            if ExpandSearchBox then
+                ExpandSearchBox.Text = ""
+            end
+
+            Expanded = true
+            Library.ActiveExpandedDropdown = Priority
+
+            RebuildExpandedRows()
+
+            StopExpandTweens()
+            ExpandOverlay.BackgroundTransparency = 1
+            ExpandScale.Scale = 0.94
+            ExpandOverlay.Visible = true
+
+            ExpandFadeTween = TweenService:Create(ExpandOverlay, DROPDOWN_EXPAND_TWEEN, { BackgroundTransparency = 0.5 })
+            ExpandScaleTween = TweenService:Create(ExpandScale, DROPDOWN_EXPAND_TWEEN, { Scale = 1 })
+            ExpandFadeTween:Play()
+            ExpandScaleTween:Play()
+        end
+
+        function Priority:Collapse()
+            if not Expanded or not ExpandOverlay then
+                return
+            end
+
+            Expanded = false
+            if Library.ActiveExpandedDropdown == Priority then
+                Library.ActiveExpandedDropdown = nil
+            end
+
+            StopExpandTweens()
+
+            ExpandFadeTween = TweenService:Create(ExpandOverlay, DROPDOWN_EXPAND_TWEEN, { BackgroundTransparency = 1 })
+            ExpandScaleTween = TweenService:Create(ExpandScale, DROPDOWN_EXPAND_TWEEN, { Scale = 0.96 })
+
+            ExpandFadeTween.Completed:Once(function(State)
+                if State == Enum.PlaybackState.Cancelled or Expanded then
+                    return
+                end
+                ExpandOverlay.Visible = false
+            end)
+
+            ExpandFadeTween:Play()
+            ExpandScaleTween:Play()
+        end
+
+        function Priority:IsExpanded()
+            return Expanded
+        end
+
+        function Priority:ToggleExpanded()
+            if Expanded then
+                Priority:Collapse()
+            else
+                Priority:Expand()
+            end
+        end
+
+        --// Resolve the starting order: honour Default when it lists known
+        --// values, then append any Values it left out so nothing is lost.
+        local function ResolveOrder()
+            local Order = {}
+            local Seen = {}
+
+            local function Push(Value)
+                if Value == nil or Seen[Value] then
+                    return
+                end
+                if table.find(Priority.Values, Value) then
+                    Seen[Value] = true
+                    table.insert(Order, Value)
+                end
+            end
+
+            if typeof(Info.Default) == "table" then
+                for _, Value in Info.Default do
+                    Push(Value)
+                end
+            end
+            for _, Value in Priority.Values do
+                Push(Value)
+            end
+
+            return Order
+        end
+
+        function Priority:SetValue(Order)
+            local Ordered = {}
+            local Seen = {}
+
+            if typeof(Order) == "table" then
+                for _, Value in Order do
+                    if not Seen[Value] and table.find(Priority.Values, Value) then
+                        Seen[Value] = true
+                        table.insert(Ordered, Value)
+                    end
+                end
+            end
+
+            --// Anything omitted keeps its place at the bottom
+            for _, Value in Priority.Values do
+                if not Seen[Value] then
+                    table.insert(Ordered, Value)
+                end
+            end
+
+            Priority.Value = Ordered
+            Priority:BuildList()
+            Priority:Display()
+
+            if not Priority.Disabled then
+                Priority:RunChanged()
+            end
+        end
+
+        function Priority:SetValues(Values)
+            Priority.Values = Values
+            Priority:SetValue(Priority.Value)
+        end
+
+        function Priority:OnChanged(Func)
+            Priority.Changed = Func
+        end
+
+        function Priority:SetDisabled(Disabled: boolean)
+            Priority.Disabled = Disabled
+
+            if Priority.TooltipTable then
+                Priority.TooltipTable.Disabled = Priority.Disabled
+            end
+
+            MenuTable:Close()
+            if Priority.Disabled then
+                Priority:Collapse()
+            end
+            DisplayButton.Active = not Priority.Disabled
+            Priority:UpdateColors()
+            Relayout(nil, false)
+            RelayoutExpand(nil, false)
+        end
+
+        function Priority:SetVisible(Visible: boolean)
+            Priority.Visible = Visible
+            Holder.Visible = Priority.Visible
+            Groupbox:Resize()
+        end
+
+        function Priority:SetText(Text: string)
+            Priority.Text = Text
+            Holder.Size = UDim2.new(1, 0, 0, Text and 39 or 21)
+            Label.Text = Text and Text or ""
+            Label.Visible = not not Text
+        end
+
+        local ToggleDropdown = function()
+            if Priority.Disabled then
+                return
+            end
+            MenuTable:Toggle()
+        end
+
+        table.insert(Priority.Connections, DisplayContainer.MouseButton1Click:Connect(ToggleDropdown))
+        table.insert(Priority.Connections, DisplayButton.MouseButton1Click:Connect(ToggleDropdown))
+
+        if ExpandButton then
+            table.insert(Priority.Connections, ExpandButton.MouseButton1Click:Connect(function()
+                Priority:ToggleExpanded()
+            end))
+        end
+
+        if SearchBox then
+            table.insert(Priority.Connections, SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+                Relayout(nil, false)
+            end))
+        end
+
+        Priority.Value = ResolveOrder()
+
+        if typeof(Priority.Tooltip) == "string" or typeof(Priority.DisabledTooltip) == "string" then
+            Priority.TooltipTable = Library:AddTooltip(Priority.Tooltip, Priority.DisabledTooltip, DisplayContainer)
+            Priority.TooltipTable.Disabled = Priority.Disabled
+        end
+
+        Priority:UpdateColors()
+        Priority:Display()
+        Priority:BuildList()
+        Groupbox:Resize()
+
+        Priority.Holder = Holder
+        table.insert(Groupbox.Elements, Priority)
+
+        Priority.Default = Priority:GetValue()
+        Priority.DefaultValues = Priority.Values
+
+        Options[Idx] = Priority
+
+        function Priority:Destroy()
+            Priority.Destroyed = true
+
+            StopDrag()
+
+            if Library.ActiveExpandedDropdown == Priority then
+                Library.ActiveExpandedDropdown = nil
+            end
+            if ExpandOverlay then
+                ExpandOverlay:Destroy()
+            end
+
+            if Priority.Connections then
+                for _, Connection in Priority.Connections do
+                    Connection:Disconnect()
+                end
+            end
+
+            if Priority.TooltipTable then
+                Priority.TooltipTable:Destroy()
+            end
+
+            if MenuTable then
+                MenuTable:Destroy()
+            end
+
+            if Holder then
+                Holder:Destroy()
+            end
+
+            local ElemIdx = table.find(Groupbox.Elements, Priority)
+            if ElemIdx then
+                table.remove(Groupbox.Elements, ElemIdx)
+            end
+
+            Groupbox:Resize()
+            Options[Idx] = nil
+        end
+
+        return Priority
+    end
+
     function Funcs:AddViewport(Idx, Info)
         if self.Destroyed then return nil end
 
@@ -15876,6 +17124,7 @@ function Library:CreateWindow(WindowInfo)
         local SubTabBarLayout
         local SubTabUnderline
         local SubTabUnderlineTween
+        local SubTabUnderlineSettling = false
         local SubTabAlignment = "Center"
         --// Declared up here so CreateSubTabBar below can reach it
         local MoveSubTabUnderline
@@ -15996,11 +17245,56 @@ function Library:CreateWindow(WindowInfo)
                 SubTabUnderlineTween = nil
             end
 
-            --// Nothing to slide from on the first show
+            --// Nothing to slide from on the first show. On the very first load the
+            --// buttons may not be laid out yet, so the geometry read above can be
+            --// stale (the chip briefly reads as the whole bar's width), which drops
+            --// the line wide and centered across every tab. Wait until the button's
+            --// geometry holds steady for a frame before revealing, so it snaps into
+            --// the right place instead of flashing in the middle.
             if not SubTabUnderline.Visible then
-                SubTabUnderline.Position = Target.Position
-                SubTabUnderline.Size = Target.Size
-                SubTabUnderline.Visible = true
+                if SubTabUnderlineSettling then
+                    return
+                end
+
+                SubTabUnderlineSettling = true
+
+                task.spawn(function()
+                    local LastPos, LastSize
+                    for _ = 1, 6 do
+                        if not SubTabUnderline or not Tab.ActiveSubTab or Tab.ActiveSubTab.Button ~= Button then
+                            SubTabUnderlineSettling = false
+                            return
+                        end
+
+                        local Pos = Button.AbsolutePosition
+                        local Sz = Button.AbsoluteSize
+                        if Sz.X > 0 and LastPos and Pos == LastPos and Sz == LastSize then
+                            break
+                        end
+
+                        LastPos, LastSize = Pos, Sz
+                        RunService.RenderStepped:Wait()
+                    end
+
+                    SubTabUnderlineSettling = false
+
+                    if not SubTabUnderline or SubTabUnderline.Visible or not Tab.ActiveSubTab or Tab.ActiveSubTab.Button ~= Button then
+                        return
+                    end
+
+                    --// Recompute from the now-settled geometry and snap into place
+                    local FinalOffsetX = (Button.AbsolutePosition.X - SubTabBar.AbsolutePosition.X) / Library.DPIScale
+                    local FinalWidth = Button.AbsoluteSize.X / Library.DPIScale
+                    local FinalBottom = (Button.AbsolutePosition.Y + Button.AbsoluteSize.Y - SubTabBar.AbsolutePosition.Y) / Library.DPIScale
+                    local FinalLineWidth = math.floor(FinalWidth * SUBTAB_UNDERLINE_WIDTH)
+
+                    SubTabUnderline.Position = UDim2.fromOffset(
+                        math.floor(FinalOffsetX + (FinalWidth - FinalLineWidth) / 2),
+                        FinalBottom - SUBTAB_UNDERLINE_GAP
+                    )
+                    SubTabUnderline.Size = UDim2.fromOffset(FinalLineWidth, 1)
+                    SubTabUnderline.Visible = true
+                end)
 
                 return
             end
