@@ -251,6 +251,59 @@ export type DropdownInfo = {
     Visible: boolean?,
 }
 
+export type PriorityDropdownInfo = {
+    Text: string?,
+    Values: { any },
+    --// Initial priority order (highest first); defaults to Values order
+    Default: { any }?,
+    MaxVisibleDropdownItems: number?,
+    Searchable: boolean?,
+    --// Adds a button that opens the list in a large panel over the window
+    Expandable: boolean?,
+    FormatDisplayValue: ((any) -> string)?,
+    Tooltip: string?,
+    DisabledTooltip: string?,
+    Callback: (({ any }) -> ())?,
+    Changed: (({ any }) -> ())?,
+    Disabled: boolean?,
+    Visible: boolean?,
+}
+
+export type PriorityDropdown = {
+    Text: string?,
+    Value: { any },
+    Values: { any },
+    FormatDisplayValue: ((any) -> string)?,
+    Tooltip: string?,
+    DisabledTooltip: string?,
+    Callback: ({ any }) -> (),
+    Changed: ({ any }) -> (),
+    Disabled: boolean,
+    Visible: boolean,
+    Type: "PriorityDropdown",
+
+    Default: { any },
+    DefaultValues: { any },
+
+    RunChanged: (self: PriorityDropdown) -> (),
+    GetValue: (self: PriorityDropdown) -> { any },
+    Display: (self: PriorityDropdown) -> (),
+    UpdateColors: (self: PriorityDropdown) -> (),
+    RecalculateListSize: (self: PriorityDropdown, Count: number?) -> (),
+    BuildList: (self: PriorityDropdown) -> (),
+    SetValue: (self: PriorityDropdown, Order: { any }) -> (),
+    SetValues: (self: PriorityDropdown, Values: { any }) -> (),
+    OnChanged: (self: PriorityDropdown, Func: (Value: { any }) -> ()) -> (),
+    SetDisabled: (self: PriorityDropdown, Disabled: boolean) -> (),
+    SetVisible: (self: PriorityDropdown, Visible: boolean) -> (),
+    SetText: (self: PriorityDropdown, Text: string) -> (),
+    Expand: (self: PriorityDropdown) -> (),
+    Collapse: (self: PriorityDropdown) -> (),
+    IsExpanded: (self: PriorityDropdown) -> boolean,
+    ToggleExpanded: (self: PriorityDropdown) -> (),
+    Destroy: (self: PriorityDropdown) -> (),
+}
+
 export type ViewportInfo = {
     Object: BasePart | Model,
     Camera: Camera?,
@@ -712,6 +765,7 @@ export type Element =
     | Input
     | Slider
     | Dropdown
+    | PriorityDropdown
     | Viewport
     | Image
     | PlayerInfo
@@ -723,6 +777,7 @@ export type Option =
     | Input
     | Slider
     | Dropdown
+    | PriorityDropdown
     | Viewport
     | Image
     | PlayerInfo
@@ -746,6 +801,7 @@ export type BaseGroupbox = {
     AddInput: (self: Groupbox, Idx: string, Info: InputInfo) -> Input,
     AddSlider: (self: Groupbox, Idx: string, Info: SliderInfo) -> Slider,
     AddDropdown: (self: Groupbox, Idx: string, Info: DropdownInfo) -> Dropdown,
+    AddPriorityDropdown: (self: Groupbox, Idx: string, Info: PriorityDropdownInfo) -> PriorityDropdown,
     AddViewport: (self: Groupbox, Idx: string, Info: ViewportInfo) -> Viewport,
     AddImage: (self: Groupbox, Idx: string, Info: ImageInfo) -> Image,
     AddPlayerInfo: (self: Groupbox, Idx: string, Info: PlayerInfoOptions) -> PlayerInfo,
@@ -1371,6 +1427,7 @@ export type Library = {
             MinimizeKeybind: Enum.KeyCode?,
             MinimizedWidth: number?,
             MinimizedSubtitle: string?,
+            AutoMinimize: boolean?,
             CornerRadius: number?,
             NotifySide: "Left" | "Right"?,
             DisableNotificationBell: boolean?,

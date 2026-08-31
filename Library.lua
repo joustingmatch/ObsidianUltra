@@ -429,6 +429,7 @@ local Templates = {
         MinimizeKeybind = nil,
         MinimizedWidth = 300,
         MinimizedSubtitle = "",
+        AutoMinimize = false,
 
         CornerRadius = 4,
         NotifySide = "Right",
@@ -19169,6 +19170,13 @@ function Library:CreateWindow(WindowInfo)
 
     Window.MainFrame = MainFrame
     Library.Window = Window
+
+    --// AutoMinimize: collapse the window to its pill once, right after it is built,
+    --// so a freshly executed script starts out of the way. Only meaningful when the
+    --// window can actually minimize (MiniFrame exists).
+    if WindowInfo.AutoMinimize and WindowInfo.Minimizable then
+        Window:SetMinimized(true)
+    end
 
     return Window
 end

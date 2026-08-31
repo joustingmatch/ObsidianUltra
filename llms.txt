@@ -339,6 +339,60 @@ Notes:
   `Expand` does nothing.
 - `DisabledValues` render dimmed and unclickable in the panel, as in the inline list.
 
+## Priority dropdowns
+
+`Groupbox:AddPriorityDropdown(Idx, Info)` is a dropdown you never select in — you open it
+and drag values above and below one another to rank them. There is no checked/unchecked
+state; the whole point is the *order*. `Value` is the ordered array, highest priority first.
+
+```lua
+local Priority = Groupbox:AddPriorityDropdown("TargetPriority", {
+    Text = "Target Priority",
+    Values = { "Closest", "Lowest Health", "Highest Threat", "Aiming At Me" },
+
+    -- Optional initial order (highest first). Any Values you leave out are
+    -- appended at the bottom, so nothing is ever dropped.
+    Default = { "Aiming At Me", "Lowest Health" },
+
+    Searchable = true,   -- default; type to filter the list (drag is paused while filtered)
+    Expandable = true,   -- default; adds a button that opens a big panel over the window
+    MaxVisibleDropdownItems = 8,
+
+    Callback = function(Order)
+        -- Order is the ranked array, e.g. { "Aiming At Me", "Lowest Health", ... }
+    end,
+})
+```
+
+Each row shows a drag handle, its current rank number, and the value. Grab a row **anywhere**
+(the whole row is the handle, not just the icon) and drag up or down; the other rows slide
+out of the way and the rank numbers update live. The dragged row is clamped to the list and
+the canvas auto-scrolls when you drag near an edge, so rows can't be stranded off-screen.
+Releasing fires the callback once. Works with mouse or touch.
+
+**Expand panel.** Like the normal dropdown, there is an expand button beside the arrow (or
+call `PriorityDropdown:Expand()`). It opens the same ranked list in a large overlay panel
+with taller rows — easier to manage long lists and much easier to drag on mobile. It is the
+same `Value` underneath, so the inline menu and the panel stay in sync. Close it with the
+panel's **X**, by clicking off it, or `PriorityDropdown:Collapse()`. Only one expand panel
+(dropdown or priority dropdown) is open at a time.
+
+Methods: `PriorityDropdown:GetValue()` (a copy of the ordered array),
+`PriorityDropdown:SetValue(Order)`, `PriorityDropdown:SetValues(Values)`,
+`PriorityDropdown:OnChanged(fn)`, `PriorityDropdown:SetText(Text)`,
+`PriorityDropdown:SetDisabled(bool)`, `PriorityDropdown:SetVisible(bool)`,
+`PriorityDropdown:Expand()`, `PriorityDropdown:Collapse()`,
+`PriorityDropdown:IsExpanded()`, `PriorityDropdown:ToggleExpanded()`.
+
+Notes:
+- `SetValue` and `SetValues` normalise: unknown values are ignored, and known values you
+  omit keep their place at the bottom.
+- It saves/loads with SaveManager like any other option (stored as its ranked order).
+- Searching only reorders the *view*; the underlying priority order is untouched, which is
+  why dragging is disabled until the search box is cleared.
+- The expand panel is parented to `Library.MainFrame`; if there is no window yet, `Expand`
+  does nothing. It shares `Library.ActiveExpandedDropdown` with the normal dropdown.
+
 ## Search v2
 
 Header search is case insensitive and treats the query as plain text. Characters that
@@ -400,12 +454,17 @@ Library:CreateWindow({
     MinimizeKeybind = Enum.KeyCode.RightBracket, -- optional, no default
     MinimizedWidth = 300,
     MinimizedSubtitle = "",  -- empty means "track the open tab"
+    AutoMinimize = false,    -- start collapsed to the pill on execution
 })
 
 Window:SetMinimized(true)
 Window:ToggleMinimized()
 Window:IsMinimized()
 ```
+
+`AutoMinimize` collapses the window to its pill once, right after it is built, so a freshly
+executed script starts out of the way. It only fires when `Minimizable` is on, and is a
+one-time start state — the user can restore the window normally afterwards.
 
 **The card needs no setup.** It is part of the window, built whenever `Minimizable` is on,
 and fills itself in from what the window already knows. A script that never touches the
