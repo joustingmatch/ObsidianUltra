@@ -16179,6 +16179,7 @@ function Library:CreateWindow(WindowInfo)
 
             local TabboxHolder
             local TabboxButtons
+            local TabboxUnderline
 
             do
                 TabboxHolder = New("Frame", {
@@ -16198,12 +16199,31 @@ function Library:CreateWindow(WindowInfo)
                 TabboxButtons = New("Frame", {
                     BackgroundTransparency = 1,
                     Size = UDim2.new(1, 0, 0, 34),
+                    ZIndex = 2,
                     Parent = TabboxHolder,
                 })
                 New("UIListLayout", {
                     FillDirection = Enum.FillDirection.Horizontal,
                     HorizontalFlex = Enum.UIFlexAlignment.Fill,
                     Parent = TabboxButtons,
+                })
+
+                --// Full-width separator under the tab row (header divider)
+                Library:MakeLine(TabboxHolder, {
+                    Position = UDim2.fromOffset(0, 34),
+                    Size = UDim2.new(1, 0, 0, 1),
+                })
+
+                --// Accent underline that slides to the active tab
+                TabboxUnderline = New("Frame", {
+                    AnchorPoint = Vector2.new(0, 1),
+                    BackgroundColor3 = "AccentColor",
+                    BorderSizePixel = 0,
+                    Position = UDim2.fromOffset(0, 35),
+                    Size = UDim2.fromOffset(0, 2),
+                    Visible = false,
+                    ZIndex = 3,
+                    Parent = TabboxHolder,
                 })
             end
 
@@ -16226,6 +16246,49 @@ function Library:CreateWindow(WindowInfo)
 
                 ParentBox = if ParentObj.Type == "Groupbox" then ParentObj else nil,
             }
+
+            --// Slide the accent underline under the given tab button. Uses the
+            --// button's laid-out rect (flex-filled), so it stays correct for any
+            --// number of tabs and any DPI scale.
+            local function MoveUnderline(Button: GuiObject, Animate: boolean)
+                if not (TabboxUnderline and Button) then
+                    return
+                end
+
+                if TabboxButtons.AbsoluteSize.X <= 0 then
+                    task.defer(MoveUnderline, Button, false)
+                    return
+                end
+
+                local Scale = Library.DPIScale > 0 and Library.DPIScale or 1
+                local RelX = (Button.AbsolutePosition.X - TabboxButtons.AbsolutePosition.X) / Scale
+                local Width = Button.AbsoluteSize.X / Scale
+                local Pad = 12
+
+                local GoalPos = UDim2.fromOffset(math.floor(RelX + Pad), 35)
+                local GoalSize = UDim2.fromOffset(math.max(0, math.floor(Width - Pad * 2)), 2)
+
+                TabboxUnderline.Visible = true
+                if Animate and Library.Animations and Library.Animations.SubTabUnderline ~= false then
+                    TweenService:Create(TabboxUnderline, SUBTAB_SLIDE_TWEEN, {
+                        Position = GoalPos,
+                        Size = GoalSize,
+                    }):Play()
+                else
+                    TabboxUnderline.Position = GoalPos
+                    TabboxUnderline.Size = GoalSize
+                end
+            end
+
+            --// Realign the underline when the row is resized (DPI, width, pop-out)
+            table.insert(
+                Tabbox.Connections,
+                TabboxButtons:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                    if Tabbox.ActiveTab then
+                        MoveUnderline(Tabbox.ActiveTab.ButtonHolder, false)
+                    end
+                end)
+            )
 
             function Tabbox:UpdateCorners()
                 for _, Tab in Tabbox.Tabs do
@@ -16252,10 +16315,10 @@ function Library:CreateWindow(WindowInfo)
                 local TabStoringIndex = IsNameEmpty and tostring(TabIndex) or Name
 
                 local Button = New("TextButton", {
-                    BackgroundColor3 = "MainColor",
-                    BackgroundTransparency = 0,
+                    BackgroundTransparency = 1,
                     Size = UDim2.fromOffset(0, 34),
                     Text = "",
+                    ZIndex = 2,
                     Parent = TabboxButtons,
                 })
 
@@ -16308,12 +16371,6 @@ function Library:CreateWindow(WindowInfo)
                     })
                 end
 
-                local Line = Library:MakeLine(Button, {
-                    AnchorPoint = Vector2.new(0, 1),
-                    Position = UDim2.new(0, 0, 1, 1),
-                    Size = UDim2.new(1, 0, 0, 1),
-                })
-
                 local Container = New("ScrollingFrame", {
                     AutomaticCanvasSize = Enum.AutomaticSize.Y,
                     BackgroundTransparency = 1,
@@ -16354,11 +16411,10 @@ function Library:CreateWindow(WindowInfo)
                 }
 
                 function Tab:Show()
-                    if Tabbox.ActiveTab then
-                        Tabbox.ActiveTab:Hide()
+                    local PreviousActive = Tabbox.ActiveTab
+                    if PreviousActive and PreviousActive ~= Tab then
+                        PreviousActive:Hide()
                     end
-
-                    Button.BackgroundTransparency = 1
 
                     if ButtonLabel then
                         ButtonLabel.TextTransparency = 0
@@ -16367,28 +16423,42 @@ function Library:CreateWindow(WindowInfo)
                         ButtonIcon.ImageTransparency = 0
                     end
 
-                    Line.Visible = false
-
                     Container.Visible = true
 
                     Tabbox.ActiveTab = Tab
                     Tab:Resize()
+
+                    --// Slide the underline to this tab
+                    MoveUnderline(Button, true)
+
+                    --// Smooth content switch: slide the container up into place.
+                    --// Only on a real switch, so the initial build doesn't jump.
+                    if PreviousActive and PreviousActive ~= Tab
+                        and Library.Animations and Library.Animations.TabSwitch and not Tabbox.PoppedOut
+                    then
+                        Container.Position = UDim2.fromOffset(0, 45)
+                        TweenService:Create(Container, Library.TabTransitionInfo, {
+                            Position = UDim2.fromOffset(0, 35),
+                        }):Play()
+                    else
+                        Container.Position = UDim2.fromOffset(0, 35)
+                    end
+
                     Tabbox:RefreshPopOutPlaceholder()
                 end
 
                 function Tab:Hide()
-                    Button.BackgroundTransparency = 0
-
                     if ButtonLabel then
                         ButtonLabel.TextTransparency = 0.5
                     end
                     if ButtonIcon then
                         ButtonIcon.ImageTransparency = 0.5
                     end
-                    Line.Visible = true
                     Container.Visible = false
 
-                    Tabbox.ActiveTab = nil
+                    if Tabbox.ActiveTab == Tab then
+                        Tabbox.ActiveTab = nil
+                    end
                 end
 
                 function Tab:Resize()
@@ -16405,6 +16475,9 @@ function Library:CreateWindow(WindowInfo)
                     if ParentObj.Type == "Groupbox" then
                         ParentObj:Resize()
                     end
+
+                    --// Keep the underline aligned after reflows (e.g. search hides tabs)
+                    MoveUnderline(Button, false)
                 end
 
                 function Tab:UpdateCorners()

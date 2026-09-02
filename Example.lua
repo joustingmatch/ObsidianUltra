@@ -392,12 +392,25 @@ do
         end,
     })
 
-    -- Tabbox: a groupbox split into its own tabs. Anything a groupbox does, a tab does.
+    -- Tabbox: a segmented tab strip with a sliding accent underline + smooth switch.
+    -- AddTab(Name, IconName) — pass a name, an icon, or both. Icon-only tabs make a
+    -- clean toolbar-style row (like the reference "Customize" box).
     local TabBox = Tabs.Elements:AddRightTabbox("Tabbox")
-    local TabOne = TabBox:AddTab("Tab 1")
-    TabOne:AddToggle("TabboxToggle1", { Text = "Tab 1 toggle" })
-    local TabTwo = TabBox:AddTab("Tab 2")
-    TabTwo:AddToggle("TabboxToggle2", { Text = "Tab 2 toggle" })
+
+    -- Text + icon tab
+    local Overview = TabBox:AddTab("Overview", "layout-dashboard")
+    Overview:AddToggle("TabboxToggle1", { Text = "Overview toggle", Default = true })
+    Overview:AddSlider("TabboxSlider1", { Text = "A slider", Default = 3, Min = 0, Max = 10, Rounding = 0 })
+
+    -- Text + icon tab
+    local Stats_ = TabBox:AddTab("Stats", "bar-chart-3")
+    Stats_:AddToggle("TabboxToggle2", { Text = "Stats toggle" })
+    Stats_:AddDropdown("TabboxDropdown", { Text = "Metric", Values = { "Earnings", "Rebirths", "Pets" }, Default = 1 })
+
+    -- Icon-only tab (pass "" as the name)
+    local More = TabBox:AddTab("", "settings-2")
+    More:AddToggle("TabboxToggle3", { Text = "Icon-only tab toggle" })
+    More:AddButton({ Text = "A button", Func = function() Log("Tabbox icon tab button") end })
 end
 
 --// 5. Single Column tab \\--
@@ -461,10 +474,10 @@ do
 
     -- Nested: a tabbox (tabs inside a groupbox) sitting inside a sub tab.
     local Box = Nested:AddLeftTabbox("A Tabbox")
-    local TabA = Box:AddTab("Tab A")
+    local TabA = Box:AddTab("Tab A", "star")
     TabA:AddToggle("SubNestedToggleA", { Text = "Tab A toggle" })
     TabA:AddButton({ Text = "Tab A button", Func = function() Log("Nested Tab A button") end })
-    local TabB = Box:AddTab("Tab B")
+    local TabB = Box:AddTab("Tab B", "flame")
     TabB:AddSlider("SubNestedSlider", { Text = "Tab B slider", Default = 5, Min = 0, Max = 10, Rounding = 0 })
 
     Nested:AddRightGroupbox("Notes", "scroll-text")

@@ -1,6 +1,11 @@
 ## 02.09.2026
 
 ```diff
+[changes]
+* Tabboxes redesigned: the folder-tab buttons are now a clean icon/text strip with
+  a sliding accent underline and a smooth content-switch animation (underline slide
+  gated on Animations.SubTabUnderline, content slide on Animations.TabSwitch). Tabbox:AddTab(Name, IconName) — pass a name, an icon, or both ("" name = icon-only).
+
 [features]
 + Window:SetGlow(Enabled, Options?) — opt-in soft glow behind the window. Off by default and never forced/hidden (games' anticheats can flag unusual rendering). Options: { Color: Color3? (defaults to & follows the accent color), Transparency: number?, Radius: number? }. Also settable at creation via Glow = true.
 + Window:GetSizePosition() / Window:SetSizePosition(Size?, Position?) — read/apply the window size & position (clamped to the viewport & min size, relayouts tabs).
