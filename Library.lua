@@ -15182,15 +15182,16 @@ function Library:CreateWindow(WindowInfo)
         end
     end
 
-    --// Match the glow's rounded corners to the window's corner radius, so a
-    --// squared window (radius 0) gets a tight, near-square glow instead of an
-    --// odd rounded halo poking past its sharp corners.
+    --// Keep the glow soft. This is a feathered 9-slice shadow asset, so its
+    --// SliceScale governs edge softness, not corner radius — shrinking it just
+    --// collapses the halo into a hard squared box. A soft glow naturally reads
+    --// fine behind any corner radius, so we hold it at the native slice scale.
     local function UpdateGlowShape()
         if not GlowImage then
             return
         end
 
-        GlowImage.SliceScale = math.clamp(Library.CornerRadius / 12 + 0.15, 0.15, 1.6)
+        GlowImage.SliceScale = 1
     end
 
     local function EnsureGlow()
