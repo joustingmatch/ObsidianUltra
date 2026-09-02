@@ -15182,6 +15182,17 @@ function Library:CreateWindow(WindowInfo)
         end
     end
 
+    --// Match the glow's rounded corners to the window's corner radius, so a
+    --// squared window (radius 0) gets a tight, near-square glow instead of an
+    --// odd rounded halo poking past its sharp corners.
+    local function UpdateGlowShape()
+        if not GlowImage then
+            return
+        end
+
+        GlowImage.SliceScale = math.clamp(Library.CornerRadius / 12 + 0.15, 0.15, 1.6)
+    end
+
     local function EnsureGlow()
         if GlowImage then
             return
@@ -15200,6 +15211,7 @@ function Library:CreateWindow(WindowInfo)
             ZIndex = 0,
             Parent = ScreenGui,
         })
+        UpdateGlowShape()
 
         Library:GiveSignal(RunService.RenderStepped:Connect(function()
             if not (GlowImage and MainFrame) then
@@ -15246,6 +15258,7 @@ function Library:CreateWindow(WindowInfo)
         if GlowConfig.Enabled then
             EnsureGlow()
             GlowImage.ImageTransparency = GlowConfig.Transparency
+            UpdateGlowShape()
 
             if Options.Color ~= nil then
                 SetGlowColor(typeof(Options.Color) == "Color3" and Options.Color or nil)
@@ -15362,6 +15375,9 @@ function Library:CreateWindow(WindowInfo)
 
         Library.CornerRadius = Radius
         WindowInfo.CornerRadius = Radius
+
+        --// Keep the glow's rounding in step with the window's
+        UpdateGlowShape()
 
         ResizeButton.Position = UDim2.new(1, -Radius / 4, 0, 0)
         BottomBackground.Size = UDim2.new(1, 0, 0, 20 + Radius)
