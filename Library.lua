@@ -14698,7 +14698,7 @@ function Library:CreateWindow(WindowInfo)
         if MoveIcon then
             local MoveIconImage = New("ImageLabel", {
                 AnchorPoint = Vector2.new(1, 0.5),
-                ImageColor3 = "OutlineColor",
+                ImageColor3 = "AccentColor",
                 Position = UDim2.new(1, -10, 0.5, 0),
                 Size = UDim2.fromOffset(28, 28),
                 SizeConstraint = Enum.SizeConstraint.RelativeYY,
