@@ -15206,7 +15206,11 @@ function Library:CreateWindow(WindowInfo)
                 return
             end
 
-            local ShouldShow = GlowConfig.Enabled and MainFrame.Visible
+            --// Glow follows whichever frame is on screen — the main window, or the
+            --// minimized pill when collapsed — so the accent glow stays with the UI.
+            local Target = if (MiniFrame and MiniFrame.Visible) then MiniFrame else MainFrame
+
+            local ShouldShow = GlowConfig.Enabled and Target.Visible
             GlowImage.Visible = ShouldShow
             if not ShouldShow then
                 return
@@ -15214,12 +15218,12 @@ function Library:CreateWindow(WindowInfo)
 
             local Radius = GlowConfig.Radius
             GlowImage.Position = UDim2.fromOffset(
-                MainFrame.AbsolutePosition.X - Radius,
-                MainFrame.AbsolutePosition.Y - Radius
+                Target.AbsolutePosition.X - Radius,
+                Target.AbsolutePosition.Y - Radius
             )
             GlowImage.Size = UDim2.fromOffset(
-                MainFrame.AbsoluteSize.X + Radius * 2,
-                MainFrame.AbsoluteSize.Y + Radius * 2
+                Target.AbsoluteSize.X + Radius * 2,
+                Target.AbsoluteSize.Y + Radius * 2
             )
         end))
     end
