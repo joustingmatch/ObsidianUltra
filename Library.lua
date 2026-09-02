@@ -436,6 +436,11 @@ local Templates = {
         DisableNotificationBell = false,
         ShowCustomCursor = true,
 
+        --// Glow \\--
+        --// Off by default and never forced. The glow is a visible render effect,
+        --// so the user opts in themselves via Window:SetGlow(true) (or this flag).
+        Glow = false,
+
         Font = Enum.Font.Code,
         ToggleKeybind = Enum.KeyCode.RightControl,
 
@@ -13967,6 +13972,13 @@ function Library:CreateWindow(WindowInfo)
     local CurrentTabLabel
     local CurrentTabDescription
     local ResizeButton
+    local GlowImage
+    local GlowConfig = {
+        Enabled = false,
+        Transparency = 0.4,
+        Radius = 18,
+        UseAccent = true,
+    }
     local Tabs
     local Container
     local BackgroundImage
@@ -15146,6 +15158,134 @@ function Library:CreateWindow(WindowInfo)
 
         HasBackgroundImage = ValidIcon
         WindowInfo.BackgroundImage = Image
+    end
+
+    --// Glow \\--
+    --// Manual, opt-in soft glow drawn behind the window. It is never enabled or
+    --// hidden automatically: some games run anticheats that can flag unusual
+    --// rendering, so the user is the one who turns this on.
+    local function SetGlowColor(Color: Color3?)
+        if not GlowImage then
+            return
+        end
+
+        if typeof(Color) == "Color3" then
+            --// Detach from the theme so a custom color sticks across theme changes
+            GlowConfig.UseAccent = false
+            Library.Registry[GlowImage] = nil
+            GlowImage.ImageColor3 = Color
+        else
+            --// Follow the accent color and keep updating with the theme
+            GlowConfig.UseAccent = true
+            Library.Registry[GlowImage] = { ImageColor3 = "AccentColor" }
+            GlowImage.ImageColor3 = Library.Scheme.AccentColor
+        end
+    end
+
+    local function EnsureGlow()
+        if GlowImage then
+            return
+        end
+
+        GlowImage = New("ImageLabel", {
+            Active = false,
+            BackgroundTransparency = 1,
+            --// 9-slice soft shadow asset; tinted to act as a glow
+            Image = "rbxassetid://6014261993",
+            ImageColor3 = "AccentColor",
+            ImageTransparency = GlowConfig.Transparency,
+            ScaleType = Enum.ScaleType.Slice,
+            SliceCenter = Rect.new(49, 49, 450, 450),
+            Visible = false,
+            ZIndex = 0,
+            Parent = ScreenGui,
+        })
+
+        Library:GiveSignal(RunService.RenderStepped:Connect(function()
+            if not (GlowImage and MainFrame) then
+                return
+            end
+
+            local ShouldShow = GlowConfig.Enabled and MainFrame.Visible
+            GlowImage.Visible = ShouldShow
+            if not ShouldShow then
+                return
+            end
+
+            local Radius = GlowConfig.Radius
+            GlowImage.Position = UDim2.fromOffset(
+                MainFrame.AbsolutePosition.X - Radius,
+                MainFrame.AbsolutePosition.Y - Radius
+            )
+            GlowImage.Size = UDim2.fromOffset(
+                MainFrame.AbsoluteSize.X + Radius * 2,
+                MainFrame.AbsoluteSize.Y + Radius * 2
+            )
+        end))
+    end
+
+    --// Enabled: turn the glow on/off. Options: { Color: Color3?, Transparency: number?, Radius: number? }
+    --// Color defaults to (and follows) the accent color when omitted.
+    function Window:SetGlow(Enabled: boolean, Options: { [string]: any }?)
+        Options = typeof(Options) == "table" and Options or {}
+
+        if typeof(Options.Transparency) == "number" then
+            GlowConfig.Transparency = math.clamp(Options.Transparency, 0, 1)
+        end
+        if typeof(Options.Radius) == "number" then
+            GlowConfig.Radius = math.max(0, Options.Radius)
+        end
+
+        GlowConfig.Enabled = Enabled == true
+        WindowInfo.Glow = GlowConfig.Enabled
+
+        if GlowConfig.Enabled then
+            EnsureGlow()
+            GlowImage.ImageTransparency = GlowConfig.Transparency
+
+            if Options.Color ~= nil then
+                SetGlowColor(typeof(Options.Color) == "Color3" and Options.Color or nil)
+            end
+        elseif GlowImage then
+            GlowImage.Visible = false
+            GlowImage.ImageTransparency = GlowConfig.Transparency
+        end
+
+        return Window
+    end
+
+    --// Current window size and position (offset UDim2s)
+    function Window:GetSizePosition(): (UDim2, UDim2)
+        return MainFrame.Size, MainFrame.Position
+    end
+
+    --// Apply a size and/or position, clamped to the viewport and min size, then
+    --// relayout the tabs the same way a manual resize does.
+    function Window:SetSizePosition(Size: UDim2?, Position: UDim2?)
+        local Camera = workspace.CurrentCamera
+        local ViewportSize = (Camera and Camera.ViewportSize) or Vector2.new(1920, 1080)
+
+        if typeof(Size) == "UDim2" then
+            local MaxX = math.max(Library.MinSize.X, ViewportSize.X - 64)
+            local MaxY = math.max(Library.MinSize.Y, ViewportSize.Y - 64)
+
+            MainFrame.Size = UDim2.new(
+                Size.X.Scale,
+                math.clamp(Size.X.Offset, Library.MinSize.X, MaxX),
+                Size.Y.Scale,
+                math.clamp(Size.Y.Offset, Library.MinSize.Y, MaxY)
+            )
+
+            for _, Tab in Library.Tabs do
+                Tab:Resize(true)
+            end
+        end
+
+        if typeof(Position) == "UDim2" then
+            MainFrame.Position = Position
+        end
+
+        return Window
     end
 
     --// A string, or a list of segments: { Text, Copyable, CopyText }
@@ -19176,6 +19316,11 @@ function Library:CreateWindow(WindowInfo)
     --// window can actually minimize (MiniFrame exists).
     if WindowInfo.AutoMinimize and WindowInfo.Minimizable then
         Window:SetMinimized(true)
+    end
+
+    --// Glow stays opt-in: only build it when explicitly requested via config.
+    if WindowInfo.Glow then
+        Window:SetGlow(true)
     end
 
     return Window

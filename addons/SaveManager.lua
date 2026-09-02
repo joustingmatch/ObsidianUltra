@@ -149,6 +149,22 @@ local ElementParser = {}; do
     )
 
     CreateParser(
+        "PriorityDropdown", "Options",
+        function(Index: string, Priority: any)
+            return { order = Priority:GetValue() }
+        end,
+        function(Element: any?, Data: any)
+            if not Element then return end
+            if typeof(Data.order) ~= "table" then
+                Element:RunChanged()
+                return
+            end
+
+            Element:SetValue(Data.order)
+        end
+    )
+
+    CreateParser(
         "ColorPicker", "Options",
         function(Index: string, ColorPicker: any)
             return { value = ColorPicker.Value:ToHex(), transparency = ColorPicker.Transparency }
@@ -459,6 +475,12 @@ function SaveManager:SaveJSON(ConfigName)
         keybindMenu = if Library.KeybindFrame then {
             visible = Library.KeybindFrame.Visible,
             position = SpecialValueParser.UDim2.Encode(Library.KeybindFrame.Position)
+        } else nil,
+
+        --// Window size & position. Ignored via SaveManager:SetIgnoreIndexes({ "WindowLayout" })
+        window = if not IgnoreIndexes["WindowLayout"] and Library.Window and Library.Window.MainFrame then {
+            size = SpecialValueParser.UDim2.Encode(Library.Window.MainFrame.Size),
+            position = SpecialValueParser.UDim2.Encode(Library.Window.MainFrame.Position)
         } else nil
     }
 
@@ -581,6 +603,18 @@ function SaveManager:LoadJSON(Content: string)
         if KeybindMenuToggle then
             KeybindMenuToggle:SetValue(IsVisible)
         end
+    end
+
+    --// Window size & position
+    if not IgnoreIndexes["WindowLayout"]
+        and Library.Window and Library.Window.SetSizePosition
+        and typeof(Decoded.window) == "table"
+    then
+        local WindowData = Decoded.window
+        local Size = SpecialValueParser.UDim2.Decode(WindowData.size)
+        local Position = SpecialValueParser.UDim2.Decode(WindowData.position)
+
+        Library.Window:SetSizePosition(Size, Position)
     end
 
     --// Elements

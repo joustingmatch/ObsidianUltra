@@ -1,3 +1,19 @@
+## 02.09.2026
+
+```diff
+[features]
++ Window:SetGlow(Enabled, Options?) — opt-in soft glow behind the window. Off by default and never forced/hidden (games' anticheats can flag unusual rendering). Options: { Color: Color3? (defaults to & follows the accent color), Transparency: number?, Radius: number? }. Also settable at creation via Glow = true.
++ Window:GetSizePosition() / Window:SetSizePosition(Size?, Position?) — read/apply the window size & position (clamped to the viewport & min size, relayouts tabs).
++ SaveManager now saves & restores the UI size and position. Skip it with SaveManager:SetIgnoreIndexes({ "WindowLayout" }).
+```
+
+## 29.08.2026
+
+```diff
+[features]
++ Groupbox:AddPriorityDropdown(Idx, Info) — a searchable, drag-to-rank priority list (no selecting; drag rows above/below to order them). Grab a row anywhere, clamped + auto-scroll, mouse/touch. Has an expand panel (Expand/Collapse/ToggleExpanded/IsExpanded) for easier management. Saves/loads with SaveManager.
+```
+
 ## 25.08.2026
 
 ```diff

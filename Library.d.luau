@@ -1154,6 +1154,17 @@ export type Window = {
     SetBackgroundImage: (self: Window, Image: string) -> (),
     SetFooter: (self: Window, Footer: string) -> (),
     SetAlwaysOnTop: (self: Window, Enabled: boolean) -> (),
+    SetGlow: (
+        self: Window,
+        Enabled: boolean,
+        Options: {
+            Color: Color3?,
+            Transparency: number?,
+            Radius: number?,
+        }?
+    ) -> Window,
+    GetSizePosition: (self: Window) -> (UDim2, UDim2),
+    SetSizePosition: (self: Window, Size: UDim2?, Position: UDim2?) -> Window,
     SetCornerRadius: (self: Window, Radius: number) -> (),
     SetSnapping: (
         self: Window,
@@ -1432,6 +1443,7 @@ export type Library = {
             NotifySide: "Left" | "Right"?,
             DisableNotificationBell: boolean?,
             ShowCustomCursor: boolean?,
+            Glow: boolean?,
             AlwaysOnTop: boolean?,
             Font: Font | Enum.Font?,
             ToggleKeybind: Enum.KeyCode?,

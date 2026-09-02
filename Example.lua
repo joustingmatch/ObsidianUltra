@@ -379,6 +379,19 @@ do
         DisabledTooltip = "I am disabled!",
     })
 
+    -- PriorityDropdown: no selecting — open it and drag the values above/below
+    -- each other to rank them. Value is the ordered list, highest priority first.
+    Dropdowns:AddPriorityDropdown("TargetPriority", {
+        Text = "Target Priority",
+        Values = { "Closest", "Lowest Health", "Highest Threat", "Aiming At Me", "Lowest Armor" },
+        Default = { "Aiming At Me", "Lowest Health" }, -- the rest fall in below, in order
+        Searchable = true,
+        Tooltip = "Drag values to rank them",
+        Callback = function(Order)
+            print("Priority order:", table.concat(Order, " > "))
+        end,
+    })
+
     -- Tabbox: a groupbox split into its own tabs. Anything a groupbox does, a tab does.
     local TabBox = Tabs.Elements:AddRightTabbox("Tabbox")
     local TabOne = TabBox:AddTab("Tab 1")
@@ -517,6 +530,12 @@ do
         Text = "Always On Top",
         Default = Window.AlwaysOnTop,
         Callback = function(Value) Window:SetAlwaysOnTop(Value) end,
+    })
+    --// Glow is opt-in: nothing turns it on unless the user does.
+    Menu:AddToggle("WindowGlow", {
+        Text = "Window Glow",
+        Default = false,
+        Callback = function(Value) Window:SetGlow(Value) end,
     })
     Menu:AddDropdown("NotificationSide", {
         Text = "Notification Side",
