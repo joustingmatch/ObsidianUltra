@@ -16149,6 +16149,10 @@ function Library:CreateWindow(WindowInfo)
             local ParentObj = self
             --// Owner is the tab-like object holding this tabbox (Tab or SubTab)
             local Owner = if ParentObj.Type == "Groupbox" then ParentObj.Tab else ParentObj
+            --// When the tabbox lives inside a groupbox, it renders flush (no inner
+            --// card) so the tab strip reads as part of the groupbox header. Only a
+            --// standalone tabbox (dropped straight onto a tab column) gets its own box.
+            local InGroupbox = ParentObj.Type == "Groupbox"
 
             if typeof(Info.Side) == "string" then
                 local lowerSide = string.lower(Info.Side)
@@ -16184,17 +16188,21 @@ function Library:CreateWindow(WindowInfo)
             do
                 TabboxHolder = New("Frame", {
                     BackgroundColor3 = "BackgroundColor",
+                    --// Flush inside a groupbox; own card when standalone
+                    BackgroundTransparency = InGroupbox and 1 or 0,
                     Size = UDim2.fromScale(1, 0),
                     Parent = BoxHolder,
                 })
-                table.insert(
-                    Library.Corners,
-                    New("UICorner", {
-                        CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
-                        Parent = TabboxHolder,
-                    })
-                )
-                Library:AddOutline(TabboxHolder)
+                if not InGroupbox then
+                    table.insert(
+                        Library.Corners,
+                        New("UICorner", {
+                            CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                            Parent = TabboxHolder,
+                        })
+                    )
+                    Library:AddOutline(TabboxHolder)
+                end
 
                 TabboxButtons = New("Frame", {
                     BackgroundTransparency = 1,

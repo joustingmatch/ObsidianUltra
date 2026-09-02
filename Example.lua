@@ -392,25 +392,31 @@ do
         end,
     })
 
-    -- Tabbox: a segmented tab strip with a sliding accent underline + smooth switch.
-    -- AddTab(Name, IconName) — pass a name, an icon, or both. Icon-only tabs make a
-    -- clean toolbar-style row (like the reference "Customize" box).
-    local TabBox = Tabs.Elements:AddRightTabbox("Tabbox")
+    -- Tabbox inside a groupbox (the "Customize" pattern): the tab strip renders
+    -- flush under the groupbox header — no inner border — so the tabs read as part
+    -- of the groupbox. AddTab(Name, IconName) takes a name, an icon, or both.
+    local Customize = Tabs.Elements:AddRightGroupbox("Customize", "settings-2")
+    local CustomizeTabs = Customize:AddTabbox()
 
     -- Text + icon tab
-    local Overview = TabBox:AddTab("Overview", "layout-dashboard")
+    local Overview = CustomizeTabs:AddTab("Overview", "layout-dashboard")
     Overview:AddToggle("TabboxToggle1", { Text = "Overview toggle", Default = true })
     Overview:AddSlider("TabboxSlider1", { Text = "A slider", Default = 3, Min = 0, Max = 10, Rounding = 0 })
 
     -- Text + icon tab
-    local Stats_ = TabBox:AddTab("Stats", "bar-chart-3")
+    local Stats_ = CustomizeTabs:AddTab("Stats", "bar-chart-3")
     Stats_:AddToggle("TabboxToggle2", { Text = "Stats toggle" })
     Stats_:AddDropdown("TabboxDropdown", { Text = "Metric", Values = { "Earnings", "Rebirths", "Pets" }, Default = 1 })
 
     -- Icon-only tab (pass "" as the name)
-    local More = TabBox:AddTab("", "settings-2")
+    local More = CustomizeTabs:AddTab("", "sliders-horizontal")
     More:AddToggle("TabboxToggle3", { Text = "Icon-only tab toggle" })
     More:AddButton({ Text = "A button", Func = function() Log("Tabbox icon tab button") end })
+
+    -- A standalone tabbox (dropped straight on a column) still gets its own bordered box.
+    local StandaloneBox = Tabs.Elements:AddRightTabbox("Standalone Tabbox")
+    StandaloneBox:AddTab("Tab 1", "star"):AddToggle("StandaloneToggle1", { Text = "Tab 1 toggle" })
+    StandaloneBox:AddTab("Tab 2", "flame"):AddToggle("StandaloneToggle2", { Text = "Tab 2 toggle" })
 end
 
 --// 5. Single Column tab \\--
