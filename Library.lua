@@ -292,15 +292,6 @@ local Library = {
     PopOutDragThreshold = 8,
     PopOutHoldTime = 0.15,
 
-    --// Dragging \\--
-    --// A press on a drag handle has to travel this far before it counts as a
-    --// drag, so clicking the header is a click and not a one pixel nudge
-    DragThreshold = 6,
-    --// Touch has no hover state and fingers wobble, so it asks for a longer
-    --// press and more slip before the window starts following
-    TouchDragThreshold = 14,
-    TouchDragHoldTime = 0.12,
-
     --// Signals \\--
     Signals = {},
     UnloadSignals = {},
@@ -536,10 +527,6 @@ local Templates = {
         Collapsed = false,
         DisableCollapsing = false,
         PopOut = true,
-        --// A short pill at the right of the header: a count, a status, a mode
-        Badge = nil,
-        --// Keeps the badge on the number of toggles switched on in this box
-        ShowActiveCount = false,
     },
     Tabbox = {
         Side = 1,
@@ -2199,13 +2186,6 @@ function Library:MakeDraggable(
     local Changed
     local InputBegan
     local InputChanged
-    local InputEnded
-
-    --// A press arms the handle; it only becomes a drag once the pointer has
-    --// travelled far enough (and, on touch, been held long enough)
-    local Armed = false
-    local ActiveInput: InputObject? = nil
-    local PressTime = 0
 
     local SnapGuideX, SnapGuideY
 
@@ -2248,50 +2228,6 @@ function Library:MakeDraggable(
         end
     end
 
-    local function ReleaseDrag()
-        Armed = false
-        Dragging = false
-        ActiveInput = nil
-        HideSnapGuides()
-
-        if Changed and Changed.Connected then
-            Changed:Disconnect()
-            Changed = nil
-        end
-    end
-
-    --// True once this press has earned the right to move the window
-    local function PassedDragGate(Input: InputObject): boolean
-        if Dragging then
-            return true
-        end
-        if not (Armed and StartPos) then
-            return false
-        end
-
-        local Delta = Input.Position - StartPos
-        local Travel = Vector2.new(Delta.X, Delta.Y).Magnitude
-
-        if ActiveInput and ActiveInput.UserInputType == Enum.UserInputType.Touch then
-            if tick() - PressTime < Library.TouchDragHoldTime then
-                return false
-            end
-            if Travel < Library.TouchDragThreshold then
-                return false
-            end
-        elseif Travel < Library.DragThreshold then
-            return false
-        end
-
-        --// Re-baseline at the moment the drag starts, so the window picks up
-        --// from where it sits rather than jumping the length of the gate
-        Dragging = true
-        StartPos = Input.Position
-        FramePos = UI.Position
-
-        return true
-    end
-
     InputBegan = DragFrame.InputBegan:Connect(function(Input: InputObject)
         if not IsClickInput(Input) or IsMainWindow and Library.CantDragForced then
             return
@@ -2299,26 +2235,21 @@ function Library:MakeDraggable(
 
         StartPos = Input.Position
         FramePos = UI.Position
-        PressTime = tick()
-        ActiveInput = Input
-        Armed = true
-        Dragging = false
+        Dragging = true
 
         Changed = Input.Changed:Connect(function()
             if Input.UserInputState ~= Enum.UserInputState.End then
                 return
             end
 
-            ReleaseDrag()
-        end)
-    end)
+            Dragging = false
+            HideSnapGuides()
 
-    --// A touch that ends off the handle never reports through Input.Changed on
-    --// some devices, so the release is caught here as well
-    InputEnded = UserInputService.InputEnded:Connect(function(Input: InputObject)
-        if ActiveInput == Input or (not ActiveInput and Armed) then
-            ReleaseDrag()
-        end
+            if Changed and Changed.Connected then
+                Changed:Disconnect()
+                Changed = nil
+            end
+        end)
     end)
 
     InputChanged = UserInputService.InputChanged:Connect(function(Input: InputObject)
@@ -2327,21 +2258,18 @@ function Library:MakeDraggable(
             or (IsMainWindow and Library.CantDragForced)
             or not (ScreenGui and ScreenGui.Parent)
         then
-            ReleaseDrag()
+            Dragging = false
+            HideSnapGuides()
+
+            if Changed and Changed.Connected then
+                Changed:Disconnect()
+                Changed = nil
+            end
+
             return
         end
 
-        if not (Armed and IsHoverInput(Input)) then
-            return
-        end
-
-        --// A finger only steers the press that started the drag; a second touch
-        --// elsewhere on the screen must not drive the window
-        if ActiveInput and ActiveInput.UserInputType == Enum.UserInputType.Touch and Input ~= ActiveInput then
-            return
-        end
-
-        if PassedDragGate(Input) then
+        if Dragging and IsHoverInput(Input) then
             local Delta = Input.Position - StartPos
             local NewX = FramePos.X.Offset + Delta.X
             local NewY = FramePos.Y.Offset + Delta.Y
@@ -2384,7 +2312,6 @@ function Library:MakeDraggable(
 
     Library:GiveSignal(InputChanged)
     Library:GiveSignal(InputBegan)
-    Library:GiveSignal(InputEnded)
 
     UI.Destroying:Once(function()
         if InputChanged and InputChanged.Connected then
@@ -2393,10 +2320,6 @@ function Library:MakeDraggable(
 
         if InputBegan and InputBegan.Connected then
             InputBegan:Disconnect()
-        end
-
-        if InputEnded and InputEnded.Connected then
-            InputEnded:Disconnect()
         end
 
         if Changed and Changed.Connected then
@@ -2418,11 +2341,6 @@ function Library:MakeDraggable(
         local IdxBegan = table.find(Library.Signals, InputBegan)
         if IdxBegan then
             table.remove(Library.Signals, IdxBegan)
-        end
-
-        local IdxEnded = table.find(Library.Signals, InputEnded)
-        if IdxEnded then
-            table.remove(Library.Signals, IdxEnded)
         end
     end)
 end
@@ -2608,84 +2526,6 @@ local TAB_CHIP_RIM = NumberSequence.new({
 
 --// Every skinned tab button, so a sidebar width change can reach all of them
 Library.TabSkins = setmetatable({}, { __mode = "k" })
-
---// One answer to "how does an element look right now", so a checkbox, a
---// button, a dropdown and a tabbox tab all read the same at rest, under the
---// pointer, when they are on, and when they are switched off -- plus the
---// numbers behind the groupbox header badge.
---//
---// One table rather than a constant apiece on purpose: this chunk runs at
---// Luau's 200 register ceiling for a function's locals, and a loose constant
---// here is a register that the next widget cannot have.
-local Metrics = {
-    --// The pill at the right of a groupbox header, the accent wash behind it,
-    --// and the gap it keeps from the chevron
-    BadgeHeight = 16,
-    BadgeTextSize = 12,
-    BadgeTransparency = 0.82,
-    BadgeGap = 6,
-    --// Text and glyph transparency per state
-    FadeDisabled = 0.8,
-    FadeIdle = 0.45,
-    FadeHover = 0.2,
-    FadeActive = 0,
-    --// How far a surface lifts under the pointer
-    HoverLift = 6,
-    --// The accent edge an engaged element wears, and the fainter one on hover
-    EdgeActive = 0,
-    EdgeHover = 0.45,
-}
-
---// Text and glyph transparency for a given state
-local function ElementFade(Active: boolean?, Hovered: boolean?, Disabled: boolean?): number
-    if Disabled then
-        return Metrics.FadeDisabled
-    end
-    if Active then
-        return Metrics.FadeActive
-    end
-
-    return Hovered and Metrics.FadeHover or Metrics.FadeIdle
-end
-
---// A resting element surface: sunk when switched off, lifted under the pointer.
---// Returns a function, so the registry can re-resolve it on a theme change.
-local function ElementSurface(Hovered: boolean?, Disabled: boolean?): () -> Color3
-    return function()
-        if Disabled then
-            return Library.Scheme.BackgroundColor
-        end
-
-        return Hovered and Library:GetBetterColor(Library.Scheme.MainColor, Metrics.HoverLift)
-            or Library.Scheme.MainColor
-    end
-end
-
---// The element's edge: accent while it is live and engaged, outline otherwise
-local function ElementEdge(Active: boolean?, Hovered: boolean?, Disabled: boolean?): (string, number)
-    if Disabled then
-        return "OutlineColor", 0.5
-    end
-    if Active then
-        return "AccentColor", Metrics.EdgeActive
-    end
-    if Hovered then
-        return "AccentColor", Metrics.EdgeHover
-    end
-
-    return "OutlineColor", 0
-end
-
---// Set a scheme colour (a name, or a function returning one) on an instance and
---// keep the registry in step, so a theme change lands on it too
-local function ApplyScheme(Object: Instance, Property: string, Value: any)
-    local Properties = Library.Registry[Object] or {}
-    Properties[Property] = Value
-    Library.Registry[Object] = Properties
-
-    local SchemeValue = GetSchemeValue(Value)
-    Object[Property] = SchemeValue or (typeof(Value) == "function" and Value() or Value)
-end
 
 --// Black or white, whichever the accent can carry a glyph against
 local function OnAccentColor(): Color3
@@ -7767,7 +7607,7 @@ do
                 Size = UDim2.fromScale(1, 1),
                 Text = Button.Text,
                 TextSize = 14,
-                TextTransparency = ElementFade(false, false, Button.Disabled),
+                TextTransparency = 0.4,
                 Visible = Button.Visible,
                 Parent = Holder,
             })
@@ -7790,39 +7630,26 @@ do
             return Base, Stroke
         end
 
-        --// A button answers the pointer the way every other element does: the
-        --// label finishes its climb, the surface lifts, and the edge warms
-        local function SetButtonHovered(Button, Hovered: boolean)
-            if Button.Disabled then
-                return
-            end
-
-            Button.Hovered = Hovered
-
-            local Surface = ElementSurface(Hovered, false)
-            Library.Registry[Button.Base].BackgroundColor3 = Surface
-
-            local EdgeColor, EdgeTransparency = ElementEdge(false, Hovered, false)
-            Library.Registry[Button.Stroke].Color = EdgeColor
-
-            Button.Tween = TweenService:Create(Button.Base, Library.TweenInfo, {
-                TextTransparency = ElementFade(false, Hovered, false),
-                BackgroundColor3 = Surface(),
-            })
-            Button.Tween:Play()
-
-            TweenService:Create(Button.Stroke, Library.TweenInfo, {
-                Color = GetSchemeValue(EdgeColor),
-                Transparency = EdgeTransparency,
-            }):Play()
-        end
-
         local function InitEvents(Button)
             Button.Base.MouseEnter:Connect(function()
-                SetButtonHovered(Button, true)
+                if Button.Disabled then
+                    return
+                end
+
+                Button.Tween = TweenService:Create(Button.Base, Library.TweenInfo, {
+                    TextTransparency = 0,
+                })
+                Button.Tween:Play()
             end)
             Button.Base.MouseLeave:Connect(function()
-                SetButtonHovered(Button, false)
+                if Button.Disabled then
+                    return
+                end
+
+                Button.Tween = TweenService:Create(Button.Base, Library.TweenInfo, {
+                    TextTransparency = 0.4,
+                })
+                Button.Tween:Play()
             end)
 
             Button.Base.MouseButton1Click:Connect(function()
@@ -7895,7 +7722,7 @@ do
 
                 SubButton.Base.BackgroundColor3 = SubButton.Disabled and Library.Scheme.BackgroundColor
                     or Library.Scheme.MainColor
-                SubButton.Base.TextTransparency = ElementFade(false, SubButton.Hovered, SubButton.Disabled)
+                SubButton.Base.TextTransparency = SubButton.Disabled and 0.8 or 0.4
                 SubButton.Stroke.Transparency = SubButton.Disabled and 0.5 or 0
 
                 Library.Registry[SubButton.Base].BackgroundColor3 = SubButton.Disabled and "BackgroundColor"
@@ -8106,8 +7933,6 @@ do
             Addons = {},
             AnyKeyPickerPicking = false,
 
-            Hovered = false,
-
             Variant = "Checkbox",
             Type = "Toggle",
         }
@@ -8178,35 +8003,27 @@ do
                 return
             end
 
-            --// A ticked box fills with the accent and flips its tick to whatever
-            --// the accent can carry; an empty one is a plain surface that lifts
-            --// under the pointer
-            local EdgeColor, EdgeTransparency = ElementEdge(Toggle.Value, Toggle.Hovered, Toggle.Disabled)
-            ApplyScheme(CheckboxStroke, "Color", EdgeColor)
-            CheckboxStroke.Transparency = EdgeTransparency
+            CheckboxStroke.Transparency = Toggle.Disabled and 0.5 or 0
 
             if Toggle.Disabled then
-                Label.TextTransparency = ElementFade(false, false, true)
+                Label.TextTransparency = 0.8
                 CheckImage.ImageTransparency = Toggle.Value and 0.8 or 1
 
-                ApplyScheme(Checkbox, "BackgroundColor3", "BackgroundColor")
+                Checkbox.BackgroundColor3 = Library.Scheme.BackgroundColor
+                Library.Registry[Checkbox].BackgroundColor3 = "BackgroundColor"
+
                 return
             end
 
-            if Toggle.Value then
-                ApplyScheme(Checkbox, "BackgroundColor3", "AccentColor")
-                ApplyScheme(CheckImage, "ImageColor3", OnAccentColor)
-            else
-                ApplyScheme(Checkbox, "BackgroundColor3", ElementSurface(Toggle.Hovered, false))
-                ApplyScheme(CheckImage, "ImageColor3", "FontColor")
-            end
-
             TweenService:Create(Label, Library.TweenInfo, {
-                TextTransparency = ElementFade(Toggle.Value, Toggle.Hovered, false),
+                TextTransparency = Toggle.Value and 0 or 0.4,
             }):Play()
             TweenService:Create(CheckImage, Library.TweenInfo, {
                 ImageTransparency = Toggle.Value and 0 or 1,
             }):Play()
+
+            Checkbox.BackgroundColor3 = Library.Scheme.MainColor
+            Library.Registry[Checkbox].BackgroundColor3 = "MainColor"
         end
 
         function Toggle:OnChanged(Func)
@@ -8225,11 +8042,6 @@ do
 
             Toggle.Value = Value
             Toggle:Display()
-
-            --// A groupbox counting its live toggles wants to hear about this
-            if Groupbox.RefreshActiveCount then
-                Groupbox:RefreshActiveCount()
-            end
 
             for _, Addon in Toggle.Addons do
                 if Addon.Type == "KeyPicker" and Addon.SyncToggleState then
@@ -8280,15 +8092,6 @@ do
             end
 
             Toggle:SetValue(not Toggle.Value)
-        end))
-
-        table.insert(Toggle.Connections, Button.MouseEnter:Connect(function()
-            Toggle.Hovered = true
-            Toggle:Display()
-        end))
-        table.insert(Toggle.Connections, Button.MouseLeave:Connect(function()
-            Toggle.Hovered = false
-            Toggle:Display()
         end))
 
         if typeof(Toggle.Tooltip) == "string" or typeof(Toggle.DisabledTooltip) == "string" then
@@ -8530,7 +8333,7 @@ do
             BallShadow.BackgroundTransparency = Toggle.Disabled and 1 or 0.6
 
             if Toggle.Disabled then
-                Label.TextTransparency = ElementFade(false, false, true)
+                Label.TextTransparency = 0.8
                 Ball.Position = Offset
                 BallShadow.Position = Offset + UDim2.fromOffset(0, 1)
 
@@ -8543,7 +8346,7 @@ do
             end
 
             TweenService:Create(Label, Library.TweenInfo, {
-                TextTransparency = ElementFade(Toggle.Value, Toggle.Hovered, false),
+                TextTransparency = Toggle.Value and 0 or 0.4,
             }):Play()
             TweenService:Create(Ball, SWITCH_BALL_TWEEN, {
                 Position = Offset,
@@ -8569,11 +8372,6 @@ do
 
             Toggle.Value = Value
             Toggle:Display()
-
-            --// A groupbox counting its live toggles wants to hear about this
-            if Groupbox.RefreshActiveCount then
-                Groupbox:RefreshActiveCount()
-            end
 
             for _, Addon in Toggle.Addons do
                 if Addon.Type == "KeyPicker" and Addon.SyncToggleState then
@@ -8624,15 +8422,6 @@ do
             end
 
             Toggle:SetValue(not Toggle.Value)
-        end))
-
-        table.insert(Toggle.Connections, Button.MouseEnter:Connect(function()
-            Toggle.Hovered = true
-            Toggle:Display()
-        end))
-        table.insert(Toggle.Connections, Button.MouseLeave:Connect(function()
-            Toggle.Hovered = false
-            Toggle:Display()
         end))
 
         if typeof(Toggle.Tooltip) == "string" or typeof(Toggle.DisabledTooltip) == "string" then
@@ -9645,9 +9434,6 @@ do
             end))
         end
 
-        --// Set by the hover handlers further down, once the menu exists
-        local DisplayHovered = false
-
         local GetValueImage = function(Value, RawValue)
             if not Value then
                 return nil
@@ -9721,41 +9507,6 @@ do
             "Dropdown"
         )
         Dropdown.Menu = MenuTable
-
-        --// The closed box picks up the shared hover: surface lifts, edge warms,
-        --// unless the menu is open, in which case the open state owns the edge
-        local function SetDisplayHovered(Hovered: boolean)
-            if Dropdown.Disabled then
-                return
-            end
-
-            DisplayHovered = Hovered
-
-            local Surface = ElementSurface(Hovered, false)
-            Library.Registry[DisplayContainer].BackgroundColor3 = Surface
-            TweenService:Create(DisplayContainer, Library.TweenInfo, {
-                BackgroundColor3 = Surface(),
-            }):Play()
-
-            if MenuTable.Active then
-                return
-            end
-
-            local EdgeColor, EdgeTransparency = ElementEdge(false, Hovered, false)
-            Library.Registry[DisplayStroke].Color = EdgeColor
-            TweenService:Create(DisplayStroke, Library.TweenInfo, {
-                Color = GetSchemeValue(EdgeColor),
-                Transparency = EdgeTransparency,
-            }):Play()
-        end
-
-        table.insert(Dropdown.Connections, DisplayContainer.MouseEnter:Connect(function()
-            SetDisplayHovered(true)
-        end))
-        table.insert(Dropdown.Connections, DisplayContainer.MouseLeave:Connect(function()
-            SetDisplayHovered(false)
-        end))
-
 
         local ItemHeight = 21
         local PoolSize = math.max(1, Info.MaxVisibleDropdownItems + 2)
@@ -9881,15 +9632,13 @@ do
                 return
             end
 
-            Label.TextTransparency = Dropdown.Disabled and Metrics.FadeDisabled or 0
-            DisplayButton.TextTransparency = Dropdown.Disabled and Metrics.FadeDisabled or 0
-            DisplayImage.ImageTransparency = Dropdown.Disabled and Metrics.FadeDisabled or 0
-            ArrowImage.ImageTransparency =
-                ElementFade(MenuTable.Active, DisplayHovered, Dropdown.Disabled)
+            Label.TextTransparency = Dropdown.Disabled and 0.8 or 0
+            DisplayButton.TextTransparency = Dropdown.Disabled and 0.8 or 0
+            DisplayImage.ImageTransparency = Dropdown.Disabled and 0.8 or 0
+            ArrowImage.ImageTransparency = Dropdown.Disabled and 0.8 or MenuTable.Active and 0 or 0.5
 
             if ExpandIconImage then
-                ExpandIconImage.ImageTransparency =
-                    ElementFade(false, DisplayHovered, Dropdown.Disabled)
+                ExpandIconImage.ImageTransparency = Dropdown.Disabled and 0.8 or 0.5
             end
         end
 
@@ -14625,9 +14374,13 @@ end
 --// The panel drops down from underneath the notification bell. The draggable
 --// system uses top-left offset coordinates, so we compute an offset for it.
 --// Slides up toward the bell as it fades, so it reads as retracting into it.
---// Both live on Metrics for the register reason spelled out where it is declared.
-Metrics.NotifyHistorySize = Vector2.new(288, 328)
-Metrics.NotifyHistorySlide = UDim2.fromOffset(0, -22)
+--// One table rather than a constant apiece: the main chunk sits near Luau's
+--// 200 local register ceiling, and a loose constant here is a register the next
+--// widget cannot have.
+local Metrics = {
+    NotifyHistorySize = Vector2.new(288, 328),
+    NotifyHistorySlide = UDim2.fromOffset(0, -22),
+}
 local NotifyHistoryOpenTween = TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 local NotifyHistoryCloseTween = TweenInfo.new(0.17, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
@@ -18027,14 +17780,7 @@ function Library:CreateWindow(WindowInfo)
             local GroupboxList
 
             local GroupboxCollapseArrow
-            local GroupboxBadge
-            local GroupboxBadgeLabel
             local GroupboxLine
-
-            --// The header's own geometry, read back when the badge resizes
-            local TextsFrame
-            local RightInset
-            local TextsInset
 
             do
                 GroupboxHolder = New("Frame", {
@@ -18080,13 +17826,12 @@ function Library:CreateWindow(WindowInfo)
                     Library:ApplyLucideIcon(GroupboxHeaderIcon, BoxIcon)
                 end
 
-                RightInset = if Info.DisableCollapsing ~= true then 22 else 0
-                TextsInset = BoxIcon and 24 or 0
-                TextsFrame = New("Frame", {
+                local RightInset = if Info.DisableCollapsing ~= true then 22 else 0
+                local TextsFrame = New("Frame", {
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundTransparency = 1,
-                    Position = UDim2.fromOffset(TextsInset, 0),
-                    Size = UDim2.new(1, -RightInset - TextsInset, 0, 0),
+                    Position = UDim2.fromOffset(BoxIcon and 24 or 0, 0),
+                    Size = UDim2.new(1, -RightInset - (BoxIcon and 24 or 0), 0, 0),
                     Parent = GroupboxTop,
                 })
                 New("UIListLayout", {
@@ -18128,44 +17873,11 @@ function Library:CreateWindow(WindowInfo)
                     Parent = TextsFrame,
                 })
 
-                --// A short pill at the right of the header, carrying a count or a
-                --// status. It auto-sizes to its text and pushes the title's column
-                --// in by however wide it turns out to be.
-                GroupboxBadge = New("Frame", {
-                    AnchorPoint = Vector2.new(1, 0.5),
-                    AutomaticSize = Enum.AutomaticSize.X,
-                    BackgroundColor3 = "AccentColor",
-                    BackgroundTransparency = Metrics.BadgeTransparency,
-                    Position = UDim2.new(1, -RightInset, 0.5, 0),
-                    Size = UDim2.fromOffset(0, Metrics.BadgeHeight),
-                    Visible = false,
-                    Parent = GroupboxTop,
-                })
-                New("UICorner", {
-                    CornerRadius = UDim.new(1, 0),
-                    Parent = GroupboxBadge,
-                })
-                New("UIPadding", {
-                    PaddingLeft = UDim.new(0, 7),
-                    PaddingRight = UDim.new(0, 7),
-                    Parent = GroupboxBadge,
-                })
-                GroupboxBadgeLabel = New("TextLabel", {
-                    AutomaticSize = Enum.AutomaticSize.X,
-                    BackgroundTransparency = 1,
-                    Size = UDim2.fromOffset(0, Metrics.BadgeHeight),
-                    Text = "",
-                    TextColor3 = "AccentColor",
-                    TextSize = Metrics.BadgeTextSize,
-                    Parent = GroupboxBadge,
-                })
-
                 GroupboxCollapseArrow = New("ImageButton", {
                     Visible = Info.DisableCollapsing ~= true,
                     AnchorPoint = Vector2.new(1, 0.5),
                     BackgroundTransparency = 1,
                     ImageColor3 = "WhiteColor",
-                    ImageTransparency = Metrics.FadeIdle,
                     Position = UDim2.fromScale(1, 0.5),
                     Size = UDim2.fromOffset(22, 22),
                     Parent = GroupboxTop,
@@ -18264,46 +17976,6 @@ function Library:CreateWindow(WindowInfo)
                     Tween:Play()
                 else
                     GroupboxHolder.Size = TargetSize
-                end
-            end
-
-            --// Keep the title's column clear of the badge, whatever it grew to
-            local function ResizeTextsForBadge()
-                local BadgeWidth = 0
-                if GroupboxBadge.Visible then
-                    BadgeWidth = (GroupboxBadge.AbsoluteSize.X / Library.DPIScale) + Metrics.BadgeGap
-                end
-
-                TextsFrame.Size = UDim2.new(1, -RightInset - TextsInset - BadgeWidth, 0, 0)
-            end
-
-            table.insert(
-                Groupbox.Connections,
-                GroupboxBadge:GetPropertyChangedSignal("AbsoluteSize"):Connect(ResizeTextsForBadge)
-            )
-
-            --// nil or an empty string takes the badge away again
-            function Groupbox:SetBadge(Text: string | number | nil)
-                local Value = Text ~= nil and tostring(Text) or ""
-
-                GroupboxBadgeLabel.Text = Value
-                GroupboxBadge.Visible = Value ~= ""
-
-                ResizeTextsForBadge()
-                Groupbox:Resize()
-            end
-
-            --// Opt-in: the badge follows how many toggles in this box are on
-            if Info.ShowActiveCount == true then
-                function Groupbox:RefreshActiveCount()
-                    local Count = 0
-                    for _, Element in Groupbox.Elements do
-                        if Element.Type == "Toggle" and Element.Value then
-                            Count += 1
-                        end
-                    end
-
-                    Groupbox:SetBadge(Count > 0 and Count or nil)
                 end
             end
 
@@ -18482,34 +18154,6 @@ function Library:CreateWindow(WindowInfo)
                 GroupboxCollapseArrow.MouseButton1Click:Connect(function()
                     Groupbox:ToggleCollapsed()
                 end)
-
-                --// The chevron sits quiet until the pointer is over the header,
-                --// so the box does not wear a bright glyph it rarely needs
-                local function SetHeaderHovered(Hovered: boolean)
-                    TweenService:Create(GroupboxCollapseArrow, Library.TweenInfo, {
-                        ImageTransparency = ElementFade(false, Hovered, false),
-                    }):Play()
-                end
-
-                table.insert(
-                    Groupbox.Connections,
-                    GroupboxTop.MouseEnter:Connect(function()
-                        SetHeaderHovered(true)
-                    end)
-                )
-                table.insert(
-                    Groupbox.Connections,
-                    GroupboxTop.MouseLeave:Connect(function()
-                        SetHeaderHovered(false)
-                    end)
-                )
-            end
-
-            if Info.Badge ~= nil then
-                Groupbox:SetBadge(Info.Badge)
-            end
-            if Groupbox.RefreshActiveCount then
-                Groupbox:RefreshActiveCount()
             end
 
             Groupbox.AddTabbox = AddTabbox

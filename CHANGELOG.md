@@ -1,45 +1,19 @@
-## 21.09.2026 (3)
-
-```diff
-[fixes]
-* Library.lua compiles again. The main chunk sits right against Luau's ceiling of
-  200 local registers per function, and the loose constants added with the badge
-  and the shared element states pushed it over -- an executor compiling at -O0
-  (no register reuse) refused the file with "Out of local registers when trying
-  to allocate BaseGroupbox". The Discord card metrics, the player card insets,
-  the notification history sizes and the element state numbers now each live in
-  one table instead of a constant apiece, which gives the chunk 23 registers
-  back. Anything added near the top level from here should go in a table for the
-  same reason; `luau-compile -O0` is the check that catches it, since -O1 and
-  above reuse registers and compile the broken file happily.
-```
-
 ## 21.09.2026 (2)
 
 ```diff
 [changes]
-* Clicking a header no longer drags the window. A press on a drag handle only
-  arms it; it becomes a drag once the pointer has travelled 6px, and the window
-  re-baselines at that moment so it picks up from where it sits instead of
-  jumping the length of the gate. Touch asks for more: a 0.12s hold and 14px of
-  slip, since fingers wobble and there is no hover state to lean on. A second
-  finger elsewhere on the screen can no longer steer a window a first finger
-  started, and a touch that ends off the handle is caught through InputEnded as
-  well as the input's own Changed, so a drag cannot be left stuck on.
-* Elements answer the pointer the same way everywhere. One set of states --
-  idle 0.45, hovered 0.2, active 0, disabled 0.8, a surface that lifts 6 under
-  the pointer, and an accent edge at 0.45 hovered / 0 engaged -- now drives
-  checkboxes, toggles, buttons and dropdowns instead of each one picking its
-  own numbers. A ticked checkbox fills with the accent and flips its tick to
-  black or white, whichever the accent can carry; buttons lift and warm their
-  edge rather than only brightening their label; the closed dropdown box picks
-  up the same hover, and yields the edge to the open state when the menu is up.
-* Groupbox headers can carry a badge: a short accent pill at the right of the
-  header, set with Groupbox:SetBadge("3") or the Badge field, and taken away
-  again with nil. The title column gives way to however wide it grows. Passing
-  ShowActiveCount = true keeps it on the number of toggles switched on in that
-  box, updated as they change. The collapse chevron now rests at 0.45 and only
-  comes up to full when the pointer is over the header.
+* Reverted the drag gate, the shared element states and the groupbox header
+  badge. MakeDraggable is back to moving the window the moment the handle is
+  pressed, checkboxes, toggles, buttons and dropdowns keep the state colours
+  they each had, and Groupbox:SetBadge / the Badge and ShowActiveCount fields
+  are gone again.
+* Kept out of that revert: the constants that moved into tables so the main
+  chunk clears Luau's 200 local register limit. The Discord card metrics, the
+  player card insets and the notification history sizes each live in one table,
+  which is what lets the file compile at -O0 the way an executor loads it.
+  Anything added near the top level should go in a table for the same reason;
+  `luau-compile -O0` is the check, since -O1 and above reuse registers and
+  compile a file that is over the limit without complaint.
 ```
 
 ## 21.09.2026
