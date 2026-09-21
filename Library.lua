@@ -2875,14 +2875,14 @@ local SUBTAB_SLIDE_TWEEN = TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.Easi
 --// Fraction of the chip the underline spans, and its gap above the chip's bottom edge
 local SUBTAB_UNDERLINE_WIDTH = 0.66
 local SUBTAB_UNDERLINE_GAP = 3
---// Same idea for a tabbox's tab strip: the underline spans this fraction of the
---// button rather than the whole flex cell, so it reads as a marker not a border
-local TABBOX_UNDERLINE_WIDTH = 0.55
-local TABBOX_UNDERLINE_MIN = 16
---// The well that sits behind the open tab, inset inside the 34px row
-local TABBOX_WELL_TOP = 3
-local TABBOX_WELL_HEIGHT = 28
-local TABBOX_WELL_TRANSPARENCY = 0.35
+--// The tab row is a segmented control: a recessed rail inset inside the 34px
+--// row, with a raised accent chip sliding between the segments
+local TABBOX_RAIL_INSET = 4
+local TABBOX_RAIL_HEIGHT = 26
+local TABBOX_CHIP_INSET = 2
+--// The chip gradient multiplies over the accent, giving it a lit top edge
+local TABBOX_CHIP_GRADIENT_FROM = Color3.fromRGB(255, 255, 255)
+local TABBOX_CHIP_GRADIENT_TO = Color3.fromRGB(206, 206, 206)
 --// Idle, hovered and open text/icon fade for a tab in the row
 local TABBOX_TAB_IDLE_FADE = 0.55
 local TABBOX_TAB_HOVER_FADE = 0.25
@@ -2919,17 +2919,12 @@ local SLIDER_BAR_HEIGHT = 18
 local SLIDER_LABEL_HEIGHT = 14
 --// Breathing room between the label and the bar below it
 local SLIDER_LABEL_GAP = 3
---// The fill gradient multiplies over the accent, so these read as factors:
---// a touch of light at the top falling to a shaded foot
-local SLIDER_FILL_GRADIENT_FROM = Color3.fromRGB(255, 255, 255)
-local SLIDER_FILL_GRADIENT_TO = Color3.fromRGB(188, 188, 188)
---// The handle at the head of the fill, and how far it grows on hover
-local SLIDER_THUMB_WIDTH = 4
-local SLIDER_THUMB_INSET = 5
-local SLIDER_THUMB_HOVER_INSET = 3
+--// The fill gradient multiplies over the accent and runs along the bar, so
+--// these read as factors: shaded at the root, full accent at the head
+local SLIDER_FILL_GRADIENT_FROM = Color3.fromRGB(176, 176, 176)
+local SLIDER_FILL_GRADIENT_TO = Color3.fromRGB(255, 255, 255)
 --// Programmatic value changes glide; dragging stays glued to the cursor
 local SLIDER_FILL_TWEEN = TweenInfo.new(0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-local SLIDER_HOVER_TWEEN = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 --// Sub tab content always swipes from the bottom, independent of Library.TabSwipeFrom
 local SUB_TAB_SWIPE_FROM = "bottom"
@@ -8863,26 +8858,11 @@ do
             Parent = Bar,
         })
 
-        --// A vertical sheen over the accent; the gradient multiplies, so the fill
-        --// catches a little light at the top and shades off at the foot
+        --// The fill runs from a shaded root to full accent at the head; the
+        --// gradient multiplies over the accent, so nothing rides on the bar
         New("UIGradient", {
             Color = ColorSequence.new(SLIDER_FILL_GRADIENT_FROM, SLIDER_FILL_GRADIENT_TO),
-            Rotation = 90,
             Parent = Fill,
-        })
-
-        --// A slim handle rides the head of the fill, so the value has a grip
-        local Thumb = New("Frame", {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            BackgroundColor3 = "WhiteColor",
-            Position = UDim2.new(0.5, 0, 0.5, 0),
-            Size = UDim2.fromOffset(SLIDER_THUMB_WIDTH, SLIDER_BAR_HEIGHT - SLIDER_THUMB_INSET * 2),
-            ZIndex = Bar.ZIndex + 2,
-            Parent = Bar,
-        })
-        New("UICorner", {
-            CornerRadius = UDim.new(1, 0),
-            Parent = Thumb,
         })
 
         --// Softly rounded rather than pill shaped, so the track reads as a bar
@@ -8919,14 +8899,11 @@ do
             Fill.BackgroundColor3 = Slider.Disabled and Library.Scheme.OutlineColor or Library.Scheme.AccentColor
             Library.Registry[Fill].BackgroundColor3 = Slider.Disabled and "OutlineColor" or "AccentColor"
 
-            --// The handle only shows on a live slider, and stays quiet until hovered
-            local Live = not Slider.Disabled
-            Thumb.BackgroundTransparency = Live and (Slider.Hovered and 0 or 0.25) or 1
-
-            local Warm = Live and Slider.Hovered
+            --// Hover only warms the track edge; the bar itself stays flat
+            local Warm = Slider.Hovered and not Slider.Disabled
             BarStroke.Color = Warm and Library.Scheme.AccentColor or Library.Scheme.OutlineColor
             Library.Registry[BarStroke].Color = Warm and "AccentColor" or "OutlineColor"
-            BarStroke.Transparency = Warm and 0.35 or 0
+            BarStroke.Transparency = Warm and 0.4 or 0
         end
 
         function Slider:Display()
@@ -8964,15 +8941,11 @@ do
             local X = Span == 0 and 0 or (Slider.Value - Slider.Min) / Span
 
             local FillSize = UDim2.fromScale(X, 1)
-            --// Nudge the handle inwards at either end, so it never half-leaves the track
-            local ThumbPosition = UDim2.new(X, math.floor((0.5 - X) * SLIDER_THUMB_WIDTH), 0.5, 0)
 
             if Slider.Dragging then
                 Fill.Size = FillSize
-                Thumb.Position = ThumbPosition
             else
                 TweenService:Create(Fill, SLIDER_FILL_TWEEN, { Size = FillSize }):Play()
-                TweenService:Create(Thumb, SLIDER_FILL_TWEEN, { Position = ThumbPosition }):Play()
             end
         end
 
@@ -9186,20 +9159,11 @@ do
             end
         end))
 
-        --// Hovering lifts the handle and warms the track edge, so the bar
-        --// announces itself as draggable before the click
+        --// Hovering warms the track edge, so the bar announces itself as
+        --// draggable before the click
         local function SetHovered(Hovered: boolean)
             Slider.Hovered = Hovered
             Slider:UpdateColors()
-
-            if Slider.Disabled then
-                return
-            end
-
-            local Inset = Hovered and SLIDER_THUMB_HOVER_INSET or SLIDER_THUMB_INSET
-            TweenService:Create(Thumb, SLIDER_HOVER_TWEEN, {
-                Size = UDim2.fromOffset(SLIDER_THUMB_WIDTH, SLIDER_BAR_HEIGHT - Inset * 2),
-            }):Play()
         end
 
         table.insert(Slider.Connections, Bar.MouseEnter:Connect(function()
@@ -17225,8 +17189,8 @@ function Library:CreateWindow(WindowInfo)
 
             local TabboxHolder
             local TabboxButtons
-            local TabboxUnderline
-            local TabboxWell
+            local TabboxRail
+            local TabboxChip
 
             do
                 TabboxHolder = New("Frame", {
@@ -17247,6 +17211,55 @@ function Library:CreateWindow(WindowInfo)
                     Library:AddOutline(TabboxHolder)
                 end
 
+                --// The rail the segments sit in, sunk below the card surface
+                TabboxRail = New("Frame", {
+                    AnchorPoint = Vector2.new(0, 0.5),
+                    --// Recessed against a groupbox surface, faintly raised when the
+                    --// tabbox is its own card and already sits on the darker colour
+                    BackgroundColor3 = function()
+                        return Library:GetBetterColor(Library.Scheme.BackgroundColor, InGroupbox and 0 or 6)
+                    end,
+                    Position = UDim2.new(0, TABBOX_RAIL_INSET, 0, 17),
+                    Size = UDim2.new(1, -TABBOX_RAIL_INSET * 2, 0, TABBOX_RAIL_HEIGHT),
+                    ZIndex = 1,
+                    Parent = TabboxHolder,
+                })
+                table.insert(
+                    Library.Corners,
+                    New("UICorner", {
+                        CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                        Parent = TabboxRail,
+                    })
+                )
+                New("UIStroke", {
+                    Color = "OutlineColor",
+                    Transparency = 0.4,
+                    Parent = TabboxRail,
+                })
+
+                --// The raised chip that slides between segments, carrying the accent
+                TabboxChip = New("Frame", {
+                    AnchorPoint = Vector2.new(0, 0.5),
+                    BackgroundColor3 = "AccentColor",
+                    Position = UDim2.new(0, TABBOX_CHIP_INSET, 0.5, 0),
+                    Size = UDim2.new(0, 0, 0, TABBOX_RAIL_HEIGHT - TABBOX_CHIP_INSET * 2),
+                    Visible = false,
+                    Parent = TabboxRail,
+                })
+                table.insert(
+                    Library.Corners,
+                    New("UICorner", {
+                        CornerRadius = UDim.new(0, math.max(WindowInfo.CornerRadius - 1, 2)),
+                        Parent = TabboxChip,
+                    })
+                )
+                --// A lit top edge, so the chip reads as raised out of the rail
+                New("UIGradient", {
+                    Color = ColorSequence.new(TABBOX_CHIP_GRADIENT_FROM, TABBOX_CHIP_GRADIENT_TO),
+                    Rotation = 90,
+                    Parent = TabboxChip,
+                })
+
                 TabboxButtons = New("Frame", {
                     BackgroundTransparency = 1,
                     Size = UDim2.new(1, 0, 0, 34),
@@ -17259,62 +17272,15 @@ function Library:CreateWindow(WindowInfo)
                     Parent = TabboxButtons,
                 })
                 New("UIPadding", {
-                    PaddingLeft = UDim.new(0, 4),
-                    PaddingRight = UDim.new(0, 4),
+                    PaddingLeft = UDim.new(0, TABBOX_RAIL_INSET + TABBOX_CHIP_INSET),
+                    PaddingRight = UDim.new(0, TABBOX_RAIL_INSET + TABBOX_CHIP_INSET),
                     Parent = TabboxButtons,
                 })
-
-                --// A raised well behind the open tab, so the row reads as tabs
-                --// rather than three words in a line
-                TabboxWell = New("Frame", {
-                    BackgroundColor3 = function()
-                        return Library:GetBetterColor(Library.Scheme.MainColor, 8)
-                    end,
-                    BackgroundTransparency = TABBOX_WELL_TRANSPARENCY,
-                    BorderSizePixel = 0,
-                    Position = UDim2.fromOffset(0, TABBOX_WELL_TOP),
-                    Size = UDim2.fromOffset(0, TABBOX_WELL_HEIGHT),
-                    Visible = false,
-                    ZIndex = 1,
-                    Parent = TabboxHolder,
-                })
-                table.insert(
-                    Library.Corners,
-                    New("UICorner", {
-                        CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
-                        Parent = TabboxWell,
-                    })
-                )
 
                 --// Full-width separator under the tab row (header divider)
                 Library:MakeLine(TabboxHolder, {
                     Position = UDim2.fromOffset(0, 34),
                     Size = UDim2.new(1, 0, 0, 1),
-                })
-
-                --// Accent underline that slides to the active tab
-                TabboxUnderline = New("Frame", {
-                    AnchorPoint = Vector2.new(0, 1),
-                    BackgroundColor3 = "AccentColor",
-                    BorderSizePixel = 0,
-                    Position = UDim2.fromOffset(0, 35),
-                    Size = UDim2.fromOffset(0, 2),
-                    Visible = false,
-                    ZIndex = 3,
-                    Parent = TabboxHolder,
-                })
-                New("UICorner", {
-                    CornerRadius = UDim.new(1, 0),
-                    Parent = TabboxUnderline,
-                })
-                --// Feather the ends, so the bar lands softly instead of stopping dead
-                New("UIGradient", {
-                    Transparency = NumberSequence.new({
-                        NumberSequenceKeypoint.new(0, 0.6),
-                        NumberSequenceKeypoint.new(0.5, 0),
-                        NumberSequenceKeypoint.new(1, 0.6),
-                    }),
-                    Parent = TabboxUnderline,
                 })
             end
 
@@ -17338,49 +17304,37 @@ function Library:CreateWindow(WindowInfo)
                 ParentBox = if ParentObj.Type == "Groupbox" then ParentObj else nil,
             }
 
-            --// Slide the accent underline under the given tab button. Uses the
+            --// Slide the accent chip onto the given tab's segment. Uses the
             --// button's laid-out rect (flex-filled), so it stays correct for any
             --// number of tabs and any DPI scale.
-            local function MoveUnderline(Button: GuiObject, Animate: boolean)
-                if not (TabboxUnderline and Button) then
+            local function MoveChip(Button: GuiObject, Animate: boolean)
+                if not (TabboxChip and Button) then
                     return
                 end
 
-                if TabboxButtons.AbsoluteSize.X <= 0 then
-                    task.defer(MoveUnderline, Button, false)
+                if TabboxRail.AbsoluteSize.X <= 0 then
+                    task.defer(MoveChip, Button, false)
                     return
                 end
 
                 local Scale = Library.DPIScale > 0 and Library.DPIScale or 1
-                local RelX = (Button.AbsolutePosition.X - TabboxButtons.AbsolutePosition.X) / Scale
+                local RelX = (Button.AbsolutePosition.X - TabboxRail.AbsolutePosition.X) / Scale
                 local Width = Button.AbsoluteSize.X / Scale
 
-                --// Centered under the button, a fraction of its width
-                local BarWidth = math.max(TABBOX_UNDERLINE_MIN, math.floor(Width * TABBOX_UNDERLINE_WIDTH))
-                BarWidth = math.min(BarWidth, math.floor(Width))
+                --// The chip fills its segment exactly; the rail's own inset keeps
+                --// it off the ends of the rail
+                local GoalPos = UDim2.new(0, math.floor(RelX), 0.5, 0)
+                local GoalSize = UDim2.new(0, math.floor(Width), 0, TABBOX_RAIL_HEIGHT - TABBOX_CHIP_INSET * 2)
 
-                local GoalPos = UDim2.fromOffset(math.floor(RelX + (Width - BarWidth) / 2), 35)
-                local GoalSize = UDim2.fromOffset(BarWidth, 2)
-
-                local WellPos = UDim2.fromOffset(math.floor(RelX), TABBOX_WELL_TOP)
-                local WellSize = UDim2.fromOffset(math.floor(Width), TABBOX_WELL_HEIGHT)
-
-                TabboxUnderline.Visible = true
-                TabboxWell.Visible = true
+                TabboxChip.Visible = true
                 if Animate and Library.Animations and Library.Animations.SubTabUnderline ~= false then
-                    TweenService:Create(TabboxUnderline, SUBTAB_SLIDE_TWEEN, {
+                    TweenService:Create(TabboxChip, SUBTAB_SLIDE_TWEEN, {
                         Position = GoalPos,
                         Size = GoalSize,
                     }):Play()
-                    TweenService:Create(TabboxWell, SUBTAB_SLIDE_TWEEN, {
-                        Position = WellPos,
-                        Size = WellSize,
-                    }):Play()
                 else
-                    TabboxUnderline.Position = GoalPos
-                    TabboxUnderline.Size = GoalSize
-                    TabboxWell.Position = WellPos
-                    TabboxWell.Size = WellSize
+                    TabboxChip.Position = GoalPos
+                    TabboxChip.Size = GoalSize
                 end
             end
 
@@ -17389,7 +17343,7 @@ function Library:CreateWindow(WindowInfo)
                 Tabbox.Connections,
                 TabboxButtons:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                     if Tabbox.ActiveTab then
-                        MoveUnderline(Tabbox.ActiveTab.ButtonHolder, false)
+                        MoveChip(Tabbox.ActiveTab.ButtonHolder, false)
                     end
                 end)
             )
@@ -17426,11 +17380,11 @@ function Library:CreateWindow(WindowInfo)
                     Parent = TabboxButtons,
                 })
 
+                --// The chip carries the shape now, so the button itself is only a
+                --// hit area; the corner is kept so :UpdateCorners has something to
+                --// answer to when the window radius changes
                 local ButtonCorner = New("UICorner", {
-                    TopLeftRadius = UDim.new(0, WindowInfo.CornerRadius),
-                    TopRightRadius = UDim.new(0, WindowInfo.CornerRadius),
-                    BottomRightRadius = UDim.new(0, 0),
-                    BottomLeftRadius = UDim.new(0, 0),
+                    CornerRadius = UDim.new(0, math.max(WindowInfo.CornerRadius - 1, 2)),
                     Parent = Button,
                 }); table.insert(Library.SpecificCorners, ButtonCorner)
 
@@ -17514,11 +17468,19 @@ function Library:CreateWindow(WindowInfo)
                     DependencyBoxes = {},
                 }
 
-                --// One fade drives both the label and the icon, so a tab lights up
-                --// as a single chip whether it is hovered or open
+                --// An open tab sits on the accent chip, so its label and glyph flip
+                --// to whichever of black or white the accent can carry; everything
+                --// else fades against the rail instead
                 local Hovered = false
-                local function SetFade(Fade: number, Animate: boolean)
+                local function SetState(Active: boolean, Animate: boolean)
+                    local Fade = Active and 0
+                        or (Hovered and TABBOX_TAB_HOVER_FADE or TABBOX_TAB_IDLE_FADE)
+
                     if ButtonLabel then
+                        local Color = Active and OnAccentColor() or Library.Scheme.FontColor
+                        ButtonLabel.TextColor3 = Color
+                        Library.Registry[ButtonLabel].TextColor3 = Active and OnAccentColor or "FontColor"
+
                         if Animate then
                             TweenService:Create(ButtonLabel, TABBOX_TAB_FADE_TWEEN, {
                                 TextTransparency = Fade,
@@ -17527,7 +17489,14 @@ function Library:CreateWindow(WindowInfo)
                             ButtonLabel.TextTransparency = Fade
                         end
                     end
+
                     if ButtonIcon then
+                        local IconColor = Active and OnAccentColor()
+                            or (BoxIcon.Custom and Library.Scheme.WhiteColor or Library.Scheme.AccentColor)
+                        ButtonIcon.ImageColor3 = IconColor
+                        Library.Registry[ButtonIcon].ImageColor3 = Active and OnAccentColor
+                            or (BoxIcon.Custom and "WhiteColor" or "AccentColor")
+
                         if Animate then
                             TweenService:Create(ButtonIcon, TABBOX_TAB_FADE_TWEEN, {
                                 ImageTransparency = Fade,
@@ -17539,11 +17508,7 @@ function Library:CreateWindow(WindowInfo)
                 end
 
                 local function RefreshFade(Animate: boolean)
-                    if Tabbox.ActiveTab == Tab then
-                        SetFade(0, Animate)
-                    else
-                        SetFade(Hovered and TABBOX_TAB_HOVER_FADE or TABBOX_TAB_IDLE_FADE, Animate)
-                    end
+                    SetState(Tabbox.ActiveTab == Tab, Animate)
                 end
 
                 table.insert(Tab.Connections, Button.MouseEnter:Connect(function()
@@ -17561,15 +17526,15 @@ function Library:CreateWindow(WindowInfo)
                         PreviousActive:Hide()
                     end
 
-                    SetFade(0, true)
+                    SetState(true, true)
 
                     Container.Visible = true
 
                     Tabbox.ActiveTab = Tab
                     Tab:Resize()
 
-                    --// Slide the underline to this tab
-                    MoveUnderline(Button, true)
+                    --// Slide the chip onto this tab
+                    MoveChip(Button, true)
 
                     --// Smooth content switch: slide the container up into place.
                     --// Only on a real switch, so the initial build doesn't jump.
@@ -17588,7 +17553,7 @@ function Library:CreateWindow(WindowInfo)
                 end
 
                 function Tab:Hide()
-                    SetFade(Hovered and TABBOX_TAB_HOVER_FADE or TABBOX_TAB_IDLE_FADE, true)
+                    SetState(false, true)
                     Container.Visible = false
 
                     if Tabbox.ActiveTab == Tab then
@@ -17611,15 +17576,12 @@ function Library:CreateWindow(WindowInfo)
                         ParentObj:Resize()
                     end
 
-                    --// Keep the underline aligned after reflows (e.g. search hides tabs)
-                    MoveUnderline(Button, false)
+                    --// Keep the chip aligned after reflows (e.g. search hides tabs)
+                    MoveChip(Button, false)
                 end
 
                 function Tab:UpdateCorners()
-                    local Radius = WindowInfo.CornerRadius
-
-                    ButtonCorner.TopLeftRadius = UDim.new(0, TabIndex == FirstTab and Radius or 0)
-                    ButtonCorner.TopRightRadius = UDim.new(0, TabIndex == LastTab and Radius or 0)
+                    ButtonCorner.CornerRadius = UDim.new(0, math.max(WindowInfo.CornerRadius - 1, 2))
                 end
 
                 function Tab:Destroy()
@@ -17662,13 +17624,13 @@ function Library:CreateWindow(WindowInfo)
                 setmetatable(Tab, BaseGroupbox)
 
                 --// Adding a tab re-flexes the row, so every button shrinks while
-                --// the row itself keeps its width. Without this the underline would
+                --// the row itself keeps its width. Without this the chip would
                 --// keep the first tab's full-row width until the user switched tabs.
                 table.insert(
                     Tab.Connections,
                     Button:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
                         if Tabbox.ActiveTab == Tab then
-                            MoveUnderline(Tab.ButtonHolder, false)
+                            MoveChip(Tab.ButtonHolder, false)
                         end
                     end)
                 )
@@ -17676,7 +17638,7 @@ function Library:CreateWindow(WindowInfo)
                     Tab.Connections,
                     Button:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
                         if Tabbox.ActiveTab == Tab then
-                            MoveUnderline(Tab.ButtonHolder, false)
+                            MoveChip(Tab.ButtonHolder, false)
                         end
                     end)
                 )
@@ -17685,7 +17647,7 @@ function Library:CreateWindow(WindowInfo)
                     local ActiveButton = Tabbox.ActiveTab.ButtonHolder
                     task.defer(function()
                         if not Tabbox.Destroyed then
-                            MoveUnderline(ActiveButton, false)
+                            MoveChip(ActiveButton, false)
                         end
                     end)
                 end
