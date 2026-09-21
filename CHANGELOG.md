@@ -1,3 +1,19 @@
+## 21.09.2026 (3)
+
+```diff
+[fixes]
+* Library.lua compiles again. The main chunk sits right against Luau's ceiling of
+  200 local registers per function, and the loose constants added with the badge
+  and the shared element states pushed it over -- an executor compiling at -O0
+  (no register reuse) refused the file with "Out of local registers when trying
+  to allocate BaseGroupbox". The Discord card metrics, the player card insets,
+  the notification history sizes and the element state numbers now each live in
+  one table instead of a constant apiece, which gives the chunk 23 registers
+  back. Anything added near the top level from here should go in a table for the
+  same reason; `luau-compile -O0` is the check that catches it, since -O1 and
+  above reuse registers and compile the broken file happily.
+```
+
 ## 21.09.2026 (2)
 
 ```diff

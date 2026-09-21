@@ -364,18 +364,23 @@ end
 
 --// Discord card metrics. Only layout defaults live here - every image, colour,
 --// label and action on the card is caller-supplied.
-local DISCORD_BANNER_HEIGHT = 64
-local DISCORD_AVATAR_SIZE = 56
-local DISCORD_AVATAR_RING = 3
-local DISCORD_CARD_PADDING = 10
-local DISCORD_TITLE_HEIGHT = 18
-local DISCORD_SUBTITLE_HEIGHT = 16
-local DISCORD_BUTTON_HEIGHT = 26
-local DISCORD_BUTTON_GAP = 6
-local DISCORD_STATUS_SIZE = 16
---// How much of the avatar hangs below the banner, as a fraction of its size
-local DISCORD_AVATAR_OVERHANG = 0.45
-local DISCORD_COPY_FEEDBACK_TIME = 1.5
+--// One table rather than a constant apiece: this chunk sits at Luau's 200
+--// register ceiling for a function's locals, and a loose constant here is a
+--// register the next widget cannot have.
+local DiscordCard = {
+    BANNER_HEIGHT = 64,
+    AVATAR_SIZE = 56,
+    AVATAR_RING = 3,
+    CARD_PADDING = 10,
+    TITLE_HEIGHT = 18,
+    SUBTITLE_HEIGHT = 16,
+    BUTTON_HEIGHT = 26,
+    BUTTON_GAP = 6,
+    STATUS_SIZE = 16,
+    --// How much of the avatar hangs below the banner, as a fraction of its size
+    AVATAR_OVERHANG = 0.45,
+    COPY_FEEDBACK_TIME = 1.5,
+}
 
 --// Named presets for the status dot; any of them can be overridden per card
 --// with StatusColor, and an unknown name simply hides the dot.
@@ -702,8 +707,8 @@ local Templates = {
         CopiedText = "Copied!",
         CopyFailedText = "Unsupported",
 
-        BannerHeight = DISCORD_BANNER_HEIGHT,
-        AvatarSize = DISCORD_AVATAR_SIZE,
+        BannerHeight = DiscordCard.BANNER_HEIGHT,
+        AvatarSize = DiscordCard.AVATAR_SIZE,
         Visible = true,
     },
     PlayerInfo = {
@@ -2604,36 +2609,43 @@ local TAB_CHIP_RIM = NumberSequence.new({
 --// Every skinned tab button, so a sidebar width change can reach all of them
 Library.TabSkins = setmetatable({}, { __mode = "k" })
 
---// The pill at the right of a groupbox header
-local GROUPBOX_BADGE_HEIGHT = 16
-local GROUPBOX_BADGE_TEXT_SIZE = 12
---// The accent wash behind it, and the gap it keeps from the chevron
-local GROUPBOX_BADGE_TRANSPARENCY = 0.82
-local GROUPBOX_BADGE_GAP = 6
-
 --// One answer to "how does an element look right now", so a checkbox, a
 --// button, a dropdown and a tabbox tab all read the same at rest, under the
---// pointer, when they are on, and when they are switched off.
-local ELEMENT_FADE_DISABLED = 0.8
-local ELEMENT_FADE_IDLE = 0.45
-local ELEMENT_FADE_HOVER = 0.2
-local ELEMENT_FADE_ACTIVE = 0
---// How far a surface lifts under the pointer
-local ELEMENT_HOVER_LIFT = 6
---// The accent edge an engaged element wears, and the fainter one on hover
-local ELEMENT_EDGE_ACTIVE = 0
-local ELEMENT_EDGE_HOVER = 0.45
+--// pointer, when they are on, and when they are switched off -- plus the
+--// numbers behind the groupbox header badge.
+--//
+--// One table rather than a constant apiece on purpose: this chunk runs at
+--// Luau's 200 register ceiling for a function's locals, and a loose constant
+--// here is a register that the next widget cannot have.
+local Metrics = {
+    --// The pill at the right of a groupbox header, the accent wash behind it,
+    --// and the gap it keeps from the chevron
+    BadgeHeight = 16,
+    BadgeTextSize = 12,
+    BadgeTransparency = 0.82,
+    BadgeGap = 6,
+    --// Text and glyph transparency per state
+    FadeDisabled = 0.8,
+    FadeIdle = 0.45,
+    FadeHover = 0.2,
+    FadeActive = 0,
+    --// How far a surface lifts under the pointer
+    HoverLift = 6,
+    --// The accent edge an engaged element wears, and the fainter one on hover
+    EdgeActive = 0,
+    EdgeHover = 0.45,
+}
 
 --// Text and glyph transparency for a given state
 local function ElementFade(Active: boolean?, Hovered: boolean?, Disabled: boolean?): number
     if Disabled then
-        return ELEMENT_FADE_DISABLED
+        return Metrics.FadeDisabled
     end
     if Active then
-        return ELEMENT_FADE_ACTIVE
+        return Metrics.FadeActive
     end
 
-    return Hovered and ELEMENT_FADE_HOVER or ELEMENT_FADE_IDLE
+    return Hovered and Metrics.FadeHover or Metrics.FadeIdle
 end
 
 --// A resting element surface: sunk when switched off, lifted under the pointer.
@@ -2644,7 +2656,7 @@ local function ElementSurface(Hovered: boolean?, Disabled: boolean?): () -> Colo
             return Library.Scheme.BackgroundColor
         end
 
-        return Hovered and Library:GetBetterColor(Library.Scheme.MainColor, ELEMENT_HOVER_LIFT)
+        return Hovered and Library:GetBetterColor(Library.Scheme.MainColor, Metrics.HoverLift)
             or Library.Scheme.MainColor
     end
 end
@@ -2655,10 +2667,10 @@ local function ElementEdge(Active: boolean?, Hovered: boolean?, Disabled: boolea
         return "OutlineColor", 0.5
     end
     if Active then
-        return "AccentColor", ELEMENT_EDGE_ACTIVE
+        return "AccentColor", Metrics.EdgeActive
     end
     if Hovered then
-        return "AccentColor", ELEMENT_EDGE_HOVER
+        return "AccentColor", Metrics.EdgeHover
     end
 
     return "OutlineColor", 0
@@ -7350,8 +7362,10 @@ local function CreatePlayerCard(Info, Parent: Instance, IsCompact: boolean, Inse
     return PlayerInfo
 end
 
-local PLAYER_CARD_NO_INSET = { X = 0, Width = 0 }
-local PLAYER_CARD_BANNER_INSET = { X = 2, Width = -5 }
+local PLAYER_CARD_INSETS = {
+    None = { X = 0, Width = 0 },
+    Banner = { X = 2, Width = -5 },
+}
 
 
 
@@ -9867,9 +9881,9 @@ do
                 return
             end
 
-            Label.TextTransparency = Dropdown.Disabled and ELEMENT_FADE_DISABLED or 0
-            DisplayButton.TextTransparency = Dropdown.Disabled and ELEMENT_FADE_DISABLED or 0
-            DisplayImage.ImageTransparency = Dropdown.Disabled and ELEMENT_FADE_DISABLED or 0
+            Label.TextTransparency = Dropdown.Disabled and Metrics.FadeDisabled or 0
+            DisplayButton.TextTransparency = Dropdown.Disabled and Metrics.FadeDisabled or 0
+            DisplayImage.ImageTransparency = Dropdown.Disabled and Metrics.FadeDisabled or 0
             ArrowImage.ImageTransparency =
                 ElementFade(MenuTable.Active, DisplayHovered, Dropdown.Disabled)
 
@@ -12979,7 +12993,7 @@ do
         Info = Library:Validate(Info, Templates.PlayerInfo)
 
         local Groupbox = self
-        local PlayerInfo = CreatePlayerCard(Info, Groupbox.Container, true, PLAYER_CARD_NO_INSET, function()
+        local PlayerInfo = CreatePlayerCard(Info, Groupbox.Container, true, PLAYER_CARD_INSETS.None, function()
             Groupbox:Resize()
         end)
 
@@ -13086,8 +13100,8 @@ do
             BackgroundColor3 = "MainColor",
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(
-                Discord.AvatarSize + DISCORD_AVATAR_RING * 2,
-                Discord.AvatarSize + DISCORD_AVATAR_RING * 2
+                Discord.AvatarSize + DiscordCard.AVATAR_RING * 2,
+                Discord.AvatarSize + DiscordCard.AVATAR_RING * 2
             ),
             ZIndex = 3,
             Parent = Card,
@@ -13111,7 +13125,7 @@ do
             BackgroundColor3 = "MainColor",
             BorderSizePixel = 0,
             Position = UDim2.new(1, 0, 1, 0),
-            Size = UDim2.fromOffset(DISCORD_STATUS_SIZE, DISCORD_STATUS_SIZE),
+            Size = UDim2.fromOffset(DiscordCard.STATUS_SIZE, DiscordCard.STATUS_SIZE),
             Visible = false,
             ZIndex = 5,
             Parent = Avatar,
@@ -13136,9 +13150,9 @@ do
             Parent = Card,
         })
         New("UIPadding", {
-            PaddingBottom = UDim.new(0, DISCORD_CARD_PADDING),
-            PaddingLeft = UDim.new(0, DISCORD_CARD_PADDING),
-            PaddingRight = UDim.new(0, DISCORD_CARD_PADDING),
+            PaddingBottom = UDim.new(0, DiscordCard.CARD_PADDING),
+            PaddingLeft = UDim.new(0, DiscordCard.CARD_PADDING),
+            PaddingRight = UDim.new(0, DiscordCard.CARD_PADDING),
             Parent = Body,
         })
         New("UIListLayout", {
@@ -13159,7 +13173,7 @@ do
             BackgroundTransparency = 1,
             LayoutOrder = 1,
             RichText = true,
-            Size = UDim2.new(1, 0, 0, DISCORD_TITLE_HEIGHT),
+            Size = UDim2.new(1, 0, 0, DiscordCard.TITLE_HEIGHT),
             Text = Discord.Title,
             TextSize = 16,
             TextTruncate = Enum.TextTruncate.AtEnd,
@@ -13171,7 +13185,7 @@ do
             BackgroundTransparency = 1,
             LayoutOrder = 2,
             RichText = true,
-            Size = UDim2.new(1, 0, 0, DISCORD_SUBTITLE_HEIGHT),
+            Size = UDim2.new(1, 0, 0, DiscordCard.SUBTITLE_HEIGHT),
             Text = Discord.Subtitle,
             TextSize = 13,
             TextTransparency = 0.4,
@@ -13183,14 +13197,14 @@ do
         local ButtonRow = New("Frame", {
             BackgroundTransparency = 1,
             LayoutOrder = 3,
-            Size = UDim2.new(1, 0, 0, DISCORD_BUTTON_HEIGHT + 6),
+            Size = UDim2.new(1, 0, 0, DiscordCard.BUTTON_HEIGHT + 6),
             Visible = false,
             Parent = Body,
         })
         New("UIListLayout", {
             FillDirection = Enum.FillDirection.Horizontal,
             HorizontalFlex = Enum.UIFlexAlignment.Fill,
-            Padding = UDim.new(0, DISCORD_BUTTON_GAP),
+            Padding = UDim.new(0, DiscordCard.BUTTON_GAP),
             SortOrder = Enum.SortOrder.LayoutOrder,
             Parent = ButtonRow,
         })
@@ -13198,25 +13212,25 @@ do
 
         --// Layout \\--
         local function GetOverhang(): number
-            return math.floor(Discord.AvatarSize * DISCORD_AVATAR_OVERHANG) + DISCORD_AVATAR_RING
+            return math.floor(Discord.AvatarSize * DiscordCard.AVATAR_OVERHANG) + DiscordCard.AVATAR_RING
         end
 
         function Discord:GetTotalHeight(): number
-            local BodyHeight = GetOverhang() + 4 + DISCORD_TITLE_HEIGHT + DISCORD_CARD_PADDING
+            local BodyHeight = GetOverhang() + 4 + DiscordCard.TITLE_HEIGHT + DiscordCard.CARD_PADDING
 
             if SubtitleLabel.Visible then
-                BodyHeight += DISCORD_SUBTITLE_HEIGHT + 2
+                BodyHeight += DiscordCard.SUBTITLE_HEIGHT + 2
             end
 
             if ButtonRow.Visible then
-                BodyHeight += DISCORD_BUTTON_HEIGHT + 6 + 2
+                BodyHeight += DiscordCard.BUTTON_HEIGHT + 6 + 2
             end
 
             return Discord.BannerHeight + BodyHeight
         end
 
         local function UpdateLayout()
-            local RingSize = Discord.AvatarSize + DISCORD_AVATAR_RING * 2
+            local RingSize = Discord.AvatarSize + DiscordCard.AVATAR_RING * 2
             local Overhang = GetOverhang()
 
             Banner.Size = UDim2.new(1, 0, 0, Discord.BannerHeight)
@@ -13224,7 +13238,7 @@ do
             Avatar.Size = UDim2.fromOffset(Discord.AvatarSize, Discord.AvatarSize)
             AvatarRing.Size = UDim2.fromOffset(RingSize, RingSize)
             AvatarRing.Position = UDim2.fromOffset(
-                DISCORD_CARD_PADDING - DISCORD_AVATAR_RING,
+                DiscordCard.CARD_PADDING - DiscordCard.AVATAR_RING,
                 Discord.BannerHeight - (RingSize - Overhang)
             )
 
@@ -13296,7 +13310,7 @@ do
             local Base = New("TextButton", {
                 BackgroundColor3 = IsPrimary and "BlueColor" or "BackgroundColor",
                 LayoutOrder = Order,
-                Size = UDim2.new(0, 0, 0, DISCORD_BUTTON_HEIGHT),
+                Size = UDim2.new(0, 0, 0, DiscordCard.BUTTON_HEIGHT),
                 Text = "",
                 Parent = ButtonRow,
             })
@@ -13392,7 +13406,7 @@ do
                 end
 
                 TextLabel.Text = Text
-                FlashThread = task.delay(DISCORD_COPY_FEEDBACK_TIME, function()
+                FlashThread = task.delay(DiscordCard.COPY_FEEDBACK_TIME, function()
                     FlashThread = nil
 
                     if not Discord.Destroyed then
@@ -14610,9 +14624,10 @@ end
 
 --// The panel drops down from underneath the notification bell. The draggable
 --// system uses top-left offset coordinates, so we compute an offset for it.
-local NOTIFY_HISTORY_SIZE = Vector2.new(288, 328)
---// Slides up toward the bell as it fades, so it reads as retracting into it
-local NOTIFY_HISTORY_SLIDE = UDim2.fromOffset(0, -22)
+--// Slides up toward the bell as it fades, so it reads as retracting into it.
+--// Both live on Metrics for the register reason spelled out where it is declared.
+Metrics.NotifyHistorySize = Vector2.new(288, 328)
+Metrics.NotifyHistorySlide = UDim2.fromOffset(0, -22)
 local NotifyHistoryOpenTween = TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 local NotifyHistoryCloseTween = TweenInfo.new(0.17, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
@@ -14657,7 +14672,7 @@ local function PickVisibleButton(Main, Mini)
 end
 
 local function GetNotifyHistoryDefaultPos()
-    return GetDropPanelPos(PickVisibleButton(Library.NotificationBell, Library.NotificationBellMini), NOTIFY_HISTORY_SIZE)
+    return GetDropPanelPos(PickVisibleButton(Library.NotificationBell, Library.NotificationBellMini), Metrics.NotifyHistorySize)
 end
 
 function Library:_BuildNotificationHistory()
@@ -14669,7 +14684,7 @@ function Library:_BuildNotificationHistory()
         AnchorPoint = Vector2.new(0, 0),
         BackgroundColor3 = "BackgroundColor",
         Position = GetNotifyHistoryDefaultPos(),
-        Size = UDim2.fromOffset(NOTIFY_HISTORY_SIZE.X, NOTIFY_HISTORY_SIZE.Y),
+        Size = UDim2.fromOffset(Metrics.NotifyHistorySize.X, Metrics.NotifyHistorySize.Y),
         GroupTransparency = 1,
         Visible = false,
         ZIndex = 10,
@@ -15067,7 +15082,7 @@ function Library:SetNotificationHistoryVisible(Visible: boolean)
         --// Always drop out from under the bell
         local RestPos = GetNotifyHistoryDefaultPos()
         Library.NotificationHistoryRestPos = RestPos
-        Frame.Position = RestPos + NOTIFY_HISTORY_SLIDE
+        Frame.Position = RestPos + Metrics.NotifyHistorySlide
         Frame.GroupTransparency = 1
         Frame.Visible = true
 
@@ -15080,7 +15095,7 @@ function Library:SetNotificationHistoryVisible(Visible: boolean)
         local RestPos = Frame.Position
 
         TweenService:Create(Frame, NotifyHistoryCloseTween, {
-            Position = RestPos + NOTIFY_HISTORY_SLIDE,
+            Position = RestPos + Metrics.NotifyHistorySlide,
             GroupTransparency = 1,
         }):Play()
 
@@ -18120,9 +18135,9 @@ function Library:CreateWindow(WindowInfo)
                     AnchorPoint = Vector2.new(1, 0.5),
                     AutomaticSize = Enum.AutomaticSize.X,
                     BackgroundColor3 = "AccentColor",
-                    BackgroundTransparency = GROUPBOX_BADGE_TRANSPARENCY,
+                    BackgroundTransparency = Metrics.BadgeTransparency,
                     Position = UDim2.new(1, -RightInset, 0.5, 0),
-                    Size = UDim2.fromOffset(0, GROUPBOX_BADGE_HEIGHT),
+                    Size = UDim2.fromOffset(0, Metrics.BadgeHeight),
                     Visible = false,
                     Parent = GroupboxTop,
                 })
@@ -18138,10 +18153,10 @@ function Library:CreateWindow(WindowInfo)
                 GroupboxBadgeLabel = New("TextLabel", {
                     AutomaticSize = Enum.AutomaticSize.X,
                     BackgroundTransparency = 1,
-                    Size = UDim2.fromOffset(0, GROUPBOX_BADGE_HEIGHT),
+                    Size = UDim2.fromOffset(0, Metrics.BadgeHeight),
                     Text = "",
                     TextColor3 = "AccentColor",
-                    TextSize = GROUPBOX_BADGE_TEXT_SIZE,
+                    TextSize = Metrics.BadgeTextSize,
                     Parent = GroupboxBadge,
                 })
 
@@ -18150,7 +18165,7 @@ function Library:CreateWindow(WindowInfo)
                     AnchorPoint = Vector2.new(1, 0.5),
                     BackgroundTransparency = 1,
                     ImageColor3 = "WhiteColor",
-                    ImageTransparency = ELEMENT_FADE_IDLE,
+                    ImageTransparency = Metrics.FadeIdle,
                     Position = UDim2.fromScale(1, 0.5),
                     Size = UDim2.fromOffset(22, 22),
                     Parent = GroupboxTop,
@@ -18256,7 +18271,7 @@ function Library:CreateWindow(WindowInfo)
             local function ResizeTextsForBadge()
                 local BadgeWidth = 0
                 if GroupboxBadge.Visible then
-                    BadgeWidth = (GroupboxBadge.AbsoluteSize.X / Library.DPIScale) + GROUPBOX_BADGE_GAP
+                    BadgeWidth = (GroupboxBadge.AbsoluteSize.X / Library.DPIScale) + Metrics.BadgeGap
                 end
 
                 TextsFrame.Size = UDim2.new(1, -RightInset - TextsInset - BadgeWidth, 0, 0)
@@ -19071,7 +19086,7 @@ function Library:CreateWindow(WindowInfo)
 
             Info = Library:Validate(Info, Templates.PlayerInfo)
 
-            local PlayerInfo = CreatePlayerCard(Info, PlayerBannerHolder, false, PLAYER_CARD_BANNER_INSET, function()
+            local PlayerInfo = CreatePlayerCard(Info, PlayerBannerHolder, false, PLAYER_CARD_INSETS.Banner, function()
                 Tab:RefreshSides()
             end)
 
