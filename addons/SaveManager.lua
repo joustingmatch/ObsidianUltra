@@ -649,6 +649,36 @@ function SaveManager:Load(ConfigName: string): (boolean, string?)
     return SaveManager:LoadJSON(Content)
 end
 
+--// Reads a saved config off disk as-is, for copying it out of the menu. This is
+--// the stored file rather than a re-encode of the live settings, so what lands on
+--// the clipboard is exactly what "Load config" would apply.
+function SaveManager:CopyToClipboard(ConfigName: string): (boolean, string?)
+    if IsStringEmpty(ConfigName) then
+        return false, "No config is selected"
+    end
+
+    if not setclipboard then
+        return false, "Your executor does not support setclipboard"
+    end
+
+    local ConfigPath = GetConfigPath(ConfigName)
+    if ConfigPath == false or not isfile(ConfigPath) then
+        return false, "Config file does not exist"
+    end
+
+    local SuccessRead, Content = pcall(readfile, ConfigPath)
+    if not SuccessRead then
+        return false, "Failed to read config file"
+    end
+
+    local SuccessCopy, ErrorMessage = pcall(setclipboard, Content)
+    if not SuccessCopy then
+        return false, "Failed to copy to clipboard: " .. tostring(ErrorMessage)
+    end
+
+    return true
+end
+
 function SaveManager:Delete(ConfigName: string): (boolean | string?)
     if IsStringEmpty(ConfigName) then
         return false, "No config is selected"
@@ -993,6 +1023,27 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
                     RefreshAutoloadConfigLabel()
                 end
             )
+        end
+    })
+
+    ConfigurationBox:AddButton({
+        Text = "Copy config to clipboard",
+        DoubleClick = false,
+
+        Func = function()
+            local ConfigName = ConfigList.Value
+            if IsStringEmpty(ConfigName) then
+                SaveManager.Library:Notify("Please select a config first.")
+                return
+            end
+
+            local Success, ErrorMessage = SaveManager:CopyToClipboard(ConfigName)
+            if not Success then
+                SaveManager.Library:Notify(string.format("Failed to copy config %q: %s", ConfigName, ErrorMessage))
+                return
+            end
+
+            SaveManager.Library:Notify(string.format("Copied config %q to your clipboard", ConfigName))
         end
     })
 

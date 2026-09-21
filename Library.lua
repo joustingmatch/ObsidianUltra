@@ -2604,8 +2604,9 @@ function Library:SkinTabButton(Button: TextButton)
     --// The edge marker: a short accent bar hard against the sidebar's left inner
     --// edge, level with the chip. The tab list is inset by its own gutter, so the
     --// marker is pulled back out by exactly that much to sit on the edge itself.
-    --// It is drawn at both widths: an expanded row is a filled card with no accent
-    --// anywhere on it, and the rail is what ties it back to the compact chip.
+    --// It belongs to the expanded row alone: a filled card carries no accent, so
+    --// the rail is what marks it. The compact column already has the accent chip,
+    --// and a bar beside it only doubles the same answer, so it is dropped there.
     local Marker = New("Frame", {
         Active = false,
         AnchorPoint = Vector2.new(0, 0.5),
@@ -2727,8 +2728,8 @@ function Library:SkinTabButton(Button: TextButton)
         --// The marker belongs to the open tab alone: it is the one mark that does
         --// not answer to hover, so a pointer wandering the column cannot suggest
         --// two selected tabs at once.
-        local Lit = Skin.Active
-        Marker.Visible = true
+        local Lit = Skin.Active and not Skin.Compact
+        Marker.Visible = not Skin.Compact
         TweenService:Create(Marker, Library.TweenInfo, {
             BackgroundTransparency = Lit and 0 or 1,
             Size = UDim2.fromOffset(
