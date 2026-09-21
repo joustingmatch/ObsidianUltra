@@ -1,3 +1,31 @@
+## 21.09.2026 (2)
+
+```diff
+[changes]
+* Clicking a header no longer drags the window. A press on a drag handle only
+  arms it; it becomes a drag once the pointer has travelled 6px, and the window
+  re-baselines at that moment so it picks up from where it sits instead of
+  jumping the length of the gate. Touch asks for more: a 0.12s hold and 14px of
+  slip, since fingers wobble and there is no hover state to lean on. A second
+  finger elsewhere on the screen can no longer steer a window a first finger
+  started, and a touch that ends off the handle is caught through InputEnded as
+  well as the input's own Changed, so a drag cannot be left stuck on.
+* Elements answer the pointer the same way everywhere. One set of states --
+  idle 0.45, hovered 0.2, active 0, disabled 0.8, a surface that lifts 6 under
+  the pointer, and an accent edge at 0.45 hovered / 0 engaged -- now drives
+  checkboxes, toggles, buttons and dropdowns instead of each one picking its
+  own numbers. A ticked checkbox fills with the accent and flips its tick to
+  black or white, whichever the accent can carry; buttons lift and warm their
+  edge rather than only brightening their label; the closed dropdown box picks
+  up the same hover, and yields the edge to the open state when the menu is up.
+* Groupbox headers can carry a badge: a short accent pill at the right of the
+  header, set with Groupbox:SetBadge("3") or the Badge field, and taken away
+  again with nil. The title column gives way to however wide it grows. Passing
+  ShowActiveCount = true keeps it on the number of toggles switched on in that
+  box, updated as they change. The collapse chevron now rests at 0.45 and only
+  comes up to full when the pointer is over the header.
+```
+
 ## 21.09.2026
 
 ```diff
