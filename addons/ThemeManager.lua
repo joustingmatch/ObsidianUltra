@@ -208,6 +208,42 @@ local ThemeManager = {
         ["Evil Hello Kitty"] = {
             38,
             { FontColor = "ffffff", MainColor = "1c1c1c", AccentColor = "f29ac4", BackgroundColor = "191919", OutlineColor = "1c1c1c", BackgroundImage = "" },
+        },
+        ["Cotton Candy"] = {
+            39,
+            { FontColor = "f6eaff", MainColor = "231d30", AccentColor = "ffa8d8", BackgroundColor = "171320", OutlineColor = "34293f", BackgroundImage = "" },
+        },
+        ["Neon Bubblegum"] = {
+            40,
+            { FontColor = "ffeaf5", MainColor = "1a1119", AccentColor = "ff2d95", BackgroundColor = "0e0a12", OutlineColor = "33182a", BackgroundImage = "" },
+        },
+        ["Rosewater"] = {
+            41,
+            { FontColor = "f7ecef", MainColor = "241c20", AccentColor = "e8b4c8", BackgroundColor = "191416", OutlineColor = "372a30", BackgroundImage = "" },
+        },
+        ["Strawberry Milk"] = {
+            42,
+            { FontColor = "fff0f3", MainColor = "272025", AccentColor = "ff8fab", BackgroundColor = "1b1518", OutlineColor = "3b2f35", BackgroundImage = "" },
+        },
+        ["Peony"] = {
+            43,
+            { FontColor = "f4f0f7", MainColor = "1c1a21", AccentColor = "f472b6", BackgroundColor = "11101a", OutlineColor = "2e2a36", BackgroundImage = "" },
+        },
+        ["Magenta Dusk"] = {
+            44,
+            { FontColor = "f5ecff", MainColor = "201829", AccentColor = "e05ce0", BackgroundColor = "140f1c", OutlineColor = "342846", BackgroundImage = "" },
+        },
+        ["Pink Lemonade"] = {
+            45,
+            { FontColor = "fff3f5", MainColor = "261a1e", AccentColor = "ff5d8f", BackgroundColor = "1a1214", OutlineColor = "3b272d", BackgroundImage = "" },
+        },
+        ["Hot Pink Void"] = {
+            46,
+            { FontColor = "ffffff", MainColor = "141217", AccentColor = "ff4fa3", BackgroundColor = "08070a", OutlineColor = "262229", BackgroundImage = "" },
+        },
+        ["Orchid Haze"] = {
+            47,
+            { FontColor = "f8eefb", MainColor = "211a28", AccentColor = "ee9bd8", BackgroundColor = "15111a", OutlineColor = "342a3e", BackgroundImage = "" },
         }
     }
 }

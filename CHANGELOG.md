@@ -1,3 +1,28 @@
+## 21.09.2026
+
+```diff
+[changes]
+* Sliders read as a channel with light in it. The track is sunk to the background
+  colour instead of the panel colour and grown 15 -> 18px, the fill carries a soft
+  top-down sheen (a white-to-grey gradient multiplied over the accent) rather than
+  sitting flat, and a 4px white pill rides the head of the fill at 0.25 transparency
+  so the value has a visible grip. Nothing rides proud of the bar: the handle is
+  inset inside the track and nudged inwards at either end, so it never half-leaves
+  it at min or max. Hovering warms the track edge to the accent at 0.35, brings the
+  handle to full white and grows it 8 -> 12px tall. Programmatic value changes now
+  glide the fill and handle into place; dragging stays glued to the cursor, frame
+  for frame. Compact sliders share the new height, and the label gap went 2 -> 3px.
+* Tabbox tabs are chips, not three words in a line. The open tab now sits on a
+  rounded well (the panel colour lifted 8, at 0.35) that slides with the accent
+  underline, the row gained 4px of side padding so the well never touches the card
+  edge, and the underline itself is rounded and feathered at both ends instead of
+  stopping dead. Tabs answer the pointer: an idle tab sits at 0.55, climbs to 0.25
+  under the cursor and 0 when open, label and glyph fading together.
+* Nine more pink themes: Cotton Candy, Neon Bubblegum, Rosewater, Strawberry Milk,
+  Peony, Magenta Dusk, Pink Lemonade, Hot Pink Void and Orchid Haze -- from a muted
+  rosewater through milk-and-strawberry mids to a hot pink on near-black.
+```
+
 ## 20.09.2026
 
 ```diff

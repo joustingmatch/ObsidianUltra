@@ -2879,6 +2879,14 @@ local SUBTAB_UNDERLINE_GAP = 3
 --// button rather than the whole flex cell, so it reads as a marker not a border
 local TABBOX_UNDERLINE_WIDTH = 0.55
 local TABBOX_UNDERLINE_MIN = 16
+--// The well that sits behind the open tab, inset inside the 34px row
+local TABBOX_WELL_TOP = 3
+local TABBOX_WELL_HEIGHT = 28
+local TABBOX_WELL_TRANSPARENCY = 0.35
+--// Idle, hovered and open text/icon fade for a tab in the row
+local TABBOX_TAB_IDLE_FADE = 0.55
+local TABBOX_TAB_HOVER_FADE = 0.25
+local TABBOX_TAB_FADE_TWEEN = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 --// Transparency per shadow layer, nearest the chip first
 local SUBTAB_SHADOW_TRANSPARENCY = { 0.55, 0.75 }
 --// Hover squashes the chip slightly; the button itself keeps its size so the row
@@ -2905,12 +2913,23 @@ local SWITCH_ON_GRADIENT_FROM = Color3.fromRGB(205, 205, 205)
 local SWITCH_ON_GRADIENT_TO = Color3.new(1, 1, 1)
 local SWITCH_BALL_TWEEN = TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 
---// Slider: a flat track with the value sat inside it, and the label above.
---// No ball, no gradient, nothing riding proud of the bar.
-local SLIDER_BAR_HEIGHT = 15
+--// Slider: a recessed track with the value sat inside it, and the label above.
+--// The fill carries a soft sheen, and a slim handle rides its head.
+local SLIDER_BAR_HEIGHT = 18
 local SLIDER_LABEL_HEIGHT = 14
 --// Breathing room between the label and the bar below it
-local SLIDER_LABEL_GAP = 2
+local SLIDER_LABEL_GAP = 3
+--// The fill gradient multiplies over the accent, so these read as factors:
+--// a touch of light at the top falling to a shaded foot
+local SLIDER_FILL_GRADIENT_FROM = Color3.fromRGB(255, 255, 255)
+local SLIDER_FILL_GRADIENT_TO = Color3.fromRGB(188, 188, 188)
+--// The handle at the head of the fill, and how far it grows on hover
+local SLIDER_THUMB_WIDTH = 4
+local SLIDER_THUMB_INSET = 5
+local SLIDER_THUMB_HOVER_INSET = 3
+--// Programmatic value changes glide; dragging stays glued to the cursor
+local SLIDER_FILL_TWEEN = TweenInfo.new(0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+local SLIDER_HOVER_TWEEN = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 --// Sub tab content always swipes from the bottom, independent of Library.TabSwipeFrom
 local SUB_TAB_SWIPE_FROM = "bottom"
@@ -8747,6 +8766,9 @@ do
 
             AllowRightClickInput = Info.AllowRightClickInput,
 
+            Dragging = false,
+            Hovered = false,
+
             Type = "Slider",
         }
 
@@ -8756,7 +8778,7 @@ do
                 1,
                 0,
                 0,
-                Info.Compact and 15 or (SLIDER_LABEL_HEIGHT + SLIDER_LABEL_GAP + SLIDER_BAR_HEIGHT)
+                Info.Compact and SLIDER_BAR_HEIGHT or (SLIDER_LABEL_HEIGHT + SLIDER_LABEL_GAP + SLIDER_BAR_HEIGHT)
             ),
             Visible = Slider.Visible,
             Parent = Container,
@@ -8779,14 +8801,16 @@ do
         local Bar = New("TextButton", {
             Active = not Slider.Disabled,
             AnchorPoint = Vector2.new(0, 1),
-            BackgroundColor3 = "MainColor",
+            --// Sunk below the groupbox surface, so the fill reads as light in a channel
+            BackgroundColor3 = "BackgroundColor",
+            ClipsDescendants = true,
             Position = UDim2.fromScale(0, 1),
-            Size = UDim2.new(1, 0, 0, Info.Compact and 15 or SLIDER_BAR_HEIGHT),
+            Size = UDim2.new(1, 0, 0, SLIDER_BAR_HEIGHT),
             Text = "",
             Parent = Holder,
         })
 
-        New("UIStroke", {
+        local BarStroke = New("UIStroke", {
             Color = "OutlineColor",
             Parent = Bar,
         })
@@ -8839,6 +8863,28 @@ do
             Parent = Bar,
         })
 
+        --// A vertical sheen over the accent; the gradient multiplies, so the fill
+        --// catches a little light at the top and shades off at the foot
+        New("UIGradient", {
+            Color = ColorSequence.new(SLIDER_FILL_GRADIENT_FROM, SLIDER_FILL_GRADIENT_TO),
+            Rotation = 90,
+            Parent = Fill,
+        })
+
+        --// A slim handle rides the head of the fill, so the value has a grip
+        local Thumb = New("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = "WhiteColor",
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.fromOffset(SLIDER_THUMB_WIDTH, SLIDER_BAR_HEIGHT - SLIDER_THUMB_INSET * 2),
+            ZIndex = Bar.ZIndex + 2,
+            Parent = Bar,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(1, 0),
+            Parent = Thumb,
+        })
+
         --// Softly rounded rather than pill shaped, so the track reads as a bar
         table.insert(
             Library.Corners,
@@ -8872,6 +8918,15 @@ do
 
             Fill.BackgroundColor3 = Slider.Disabled and Library.Scheme.OutlineColor or Library.Scheme.AccentColor
             Library.Registry[Fill].BackgroundColor3 = Slider.Disabled and "OutlineColor" or "AccentColor"
+
+            --// The handle only shows on a live slider, and stays quiet until hovered
+            local Live = not Slider.Disabled
+            Thumb.BackgroundTransparency = Live and (Slider.Hovered and 0 or 0.25) or 1
+
+            local Warm = Live and Slider.Hovered
+            BarStroke.Color = Warm and Library.Scheme.AccentColor or Library.Scheme.OutlineColor
+            Library.Registry[BarStroke].Color = Warm and "AccentColor" or "OutlineColor"
+            BarStroke.Transparency = Warm and 0.35 or 0
         end
 
         function Slider:Display()
@@ -8905,8 +8960,20 @@ do
                 end
             end
 
-            local X = (Slider.Value - Slider.Min) / (Slider.Max - Slider.Min)
-            Fill.Size = UDim2.fromScale(X, 1)
+            local Span = Slider.Max - Slider.Min
+            local X = Span == 0 and 0 or (Slider.Value - Slider.Min) / Span
+
+            local FillSize = UDim2.fromScale(X, 1)
+            --// Nudge the handle inwards at either end, so it never half-leaves the track
+            local ThumbPosition = UDim2.new(X, math.floor((0.5 - X) * SLIDER_THUMB_WIDTH), 0.5, 0)
+
+            if Slider.Dragging then
+                Fill.Size = FillSize
+                Thumb.Position = ThumbPosition
+            else
+                TweenService:Create(Fill, SLIDER_FILL_TWEEN, { Size = FillSize }):Play()
+                TweenService:Create(Thumb, SLIDER_FILL_TWEEN, { Position = ThumbPosition }):Play()
+            end
         end
 
         function Slider:OnChanged(Func)
@@ -9093,6 +9160,7 @@ do
                 Library.ActiveLoading.Sidebar.Container.ScrollingEnabled = false
             end
 
+            Slider.Dragging = true
             while IsDragInput(Input) and not Slider.Destroyed do
                 local Location = Mouse.X
                 local Scale = math.clamp((Location - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
@@ -9107,6 +9175,7 @@ do
 
                 RunService.RenderStepped:Wait()
             end
+            Slider.Dragging = false
 
             for _, Side in Library:GetActiveSides() do
                 Side.ScrollingEnabled = true
@@ -9115,6 +9184,29 @@ do
             if Library.ActiveLoading and Library.ActiveLoading.Sidebar then
                 Library.ActiveLoading.Sidebar.Container.ScrollingEnabled = true
             end
+        end))
+
+        --// Hovering lifts the handle and warms the track edge, so the bar
+        --// announces itself as draggable before the click
+        local function SetHovered(Hovered: boolean)
+            Slider.Hovered = Hovered
+            Slider:UpdateColors()
+
+            if Slider.Disabled then
+                return
+            end
+
+            local Inset = Hovered and SLIDER_THUMB_HOVER_INSET or SLIDER_THUMB_INSET
+            TweenService:Create(Thumb, SLIDER_HOVER_TWEEN, {
+                Size = UDim2.fromOffset(SLIDER_THUMB_WIDTH, SLIDER_BAR_HEIGHT - Inset * 2),
+            }):Play()
+        end
+
+        table.insert(Slider.Connections, Bar.MouseEnter:Connect(function()
+            SetHovered(true)
+        end))
+        table.insert(Slider.Connections, Bar.MouseLeave:Connect(function()
+            SetHovered(false)
         end))
 
         if typeof(Slider.Tooltip) == "string" or typeof(Slider.DisabledTooltip) == "string" then
@@ -17134,6 +17226,7 @@ function Library:CreateWindow(WindowInfo)
             local TabboxHolder
             local TabboxButtons
             local TabboxUnderline
+            local TabboxWell
 
             do
                 TabboxHolder = New("Frame", {
@@ -17165,6 +17258,33 @@ function Library:CreateWindow(WindowInfo)
                     HorizontalFlex = Enum.UIFlexAlignment.Fill,
                     Parent = TabboxButtons,
                 })
+                New("UIPadding", {
+                    PaddingLeft = UDim.new(0, 4),
+                    PaddingRight = UDim.new(0, 4),
+                    Parent = TabboxButtons,
+                })
+
+                --// A raised well behind the open tab, so the row reads as tabs
+                --// rather than three words in a line
+                TabboxWell = New("Frame", {
+                    BackgroundColor3 = function()
+                        return Library:GetBetterColor(Library.Scheme.MainColor, 8)
+                    end,
+                    BackgroundTransparency = TABBOX_WELL_TRANSPARENCY,
+                    BorderSizePixel = 0,
+                    Position = UDim2.fromOffset(0, TABBOX_WELL_TOP),
+                    Size = UDim2.fromOffset(0, TABBOX_WELL_HEIGHT),
+                    Visible = false,
+                    ZIndex = 1,
+                    Parent = TabboxHolder,
+                })
+                table.insert(
+                    Library.Corners,
+                    New("UICorner", {
+                        CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                        Parent = TabboxWell,
+                    })
+                )
 
                 --// Full-width separator under the tab row (header divider)
                 Library:MakeLine(TabboxHolder, {
@@ -17182,6 +17302,19 @@ function Library:CreateWindow(WindowInfo)
                     Visible = false,
                     ZIndex = 3,
                     Parent = TabboxHolder,
+                })
+                New("UICorner", {
+                    CornerRadius = UDim.new(1, 0),
+                    Parent = TabboxUnderline,
+                })
+                --// Feather the ends, so the bar lands softly instead of stopping dead
+                New("UIGradient", {
+                    Transparency = NumberSequence.new({
+                        NumberSequenceKeypoint.new(0, 0.6),
+                        NumberSequenceKeypoint.new(0.5, 0),
+                        NumberSequenceKeypoint.new(1, 0.6),
+                    }),
+                    Parent = TabboxUnderline,
                 })
             end
 
@@ -17229,15 +17362,25 @@ function Library:CreateWindow(WindowInfo)
                 local GoalPos = UDim2.fromOffset(math.floor(RelX + (Width - BarWidth) / 2), 35)
                 local GoalSize = UDim2.fromOffset(BarWidth, 2)
 
+                local WellPos = UDim2.fromOffset(math.floor(RelX), TABBOX_WELL_TOP)
+                local WellSize = UDim2.fromOffset(math.floor(Width), TABBOX_WELL_HEIGHT)
+
                 TabboxUnderline.Visible = true
+                TabboxWell.Visible = true
                 if Animate and Library.Animations and Library.Animations.SubTabUnderline ~= false then
                     TweenService:Create(TabboxUnderline, SUBTAB_SLIDE_TWEEN, {
                         Position = GoalPos,
                         Size = GoalSize,
                     }):Play()
+                    TweenService:Create(TabboxWell, SUBTAB_SLIDE_TWEEN, {
+                        Position = WellPos,
+                        Size = WellSize,
+                    }):Play()
                 else
                     TabboxUnderline.Position = GoalPos
                     TabboxUnderline.Size = GoalSize
+                    TabboxWell.Position = WellPos
+                    TabboxWell.Size = WellSize
                 end
             end
 
@@ -17312,7 +17455,7 @@ function Library:CreateWindow(WindowInfo)
                 if BoxIcon then
                     ButtonIcon = New("ImageLabel", {
                         ImageColor3 = BoxIcon.Custom and "WhiteColor" or "AccentColor",
-                        ImageTransparency = 0.5,
+                        ImageTransparency = TABBOX_TAB_IDLE_FADE,
                         Size = IsNameEmpty and UDim2.fromOffset(16, 16) or UDim2.fromOffset(18, 18),
                         Parent = ButtonContent,
                     })
@@ -17327,7 +17470,7 @@ function Library:CreateWindow(WindowInfo)
                         Size = UDim2.fromOffset(0, 16),
                         Text = Name,
                         TextSize = 15,
-                        TextTransparency = 0.5,
+                        TextTransparency = TABBOX_TAB_IDLE_FADE,
                         Parent = ButtonContent,
                     })
                 end
@@ -17371,18 +17514,54 @@ function Library:CreateWindow(WindowInfo)
                     DependencyBoxes = {},
                 }
 
+                --// One fade drives both the label and the icon, so a tab lights up
+                --// as a single chip whether it is hovered or open
+                local Hovered = false
+                local function SetFade(Fade: number, Animate: boolean)
+                    if ButtonLabel then
+                        if Animate then
+                            TweenService:Create(ButtonLabel, TABBOX_TAB_FADE_TWEEN, {
+                                TextTransparency = Fade,
+                            }):Play()
+                        else
+                            ButtonLabel.TextTransparency = Fade
+                        end
+                    end
+                    if ButtonIcon then
+                        if Animate then
+                            TweenService:Create(ButtonIcon, TABBOX_TAB_FADE_TWEEN, {
+                                ImageTransparency = Fade,
+                            }):Play()
+                        else
+                            ButtonIcon.ImageTransparency = Fade
+                        end
+                    end
+                end
+
+                local function RefreshFade(Animate: boolean)
+                    if Tabbox.ActiveTab == Tab then
+                        SetFade(0, Animate)
+                    else
+                        SetFade(Hovered and TABBOX_TAB_HOVER_FADE or TABBOX_TAB_IDLE_FADE, Animate)
+                    end
+                end
+
+                table.insert(Tab.Connections, Button.MouseEnter:Connect(function()
+                    Hovered = true
+                    RefreshFade(true)
+                end))
+                table.insert(Tab.Connections, Button.MouseLeave:Connect(function()
+                    Hovered = false
+                    RefreshFade(true)
+                end))
+
                 function Tab:Show()
                     local PreviousActive = Tabbox.ActiveTab
                     if PreviousActive and PreviousActive ~= Tab then
                         PreviousActive:Hide()
                     end
 
-                    if ButtonLabel then
-                        ButtonLabel.TextTransparency = 0
-                    end
-                    if ButtonIcon then
-                        ButtonIcon.ImageTransparency = 0
-                    end
+                    SetFade(0, true)
 
                     Container.Visible = true
 
@@ -17409,12 +17588,7 @@ function Library:CreateWindow(WindowInfo)
                 end
 
                 function Tab:Hide()
-                    if ButtonLabel then
-                        ButtonLabel.TextTransparency = 0.5
-                    end
-                    if ButtonIcon then
-                        ButtonIcon.ImageTransparency = 0.5
-                    end
+                    SetFade(Hovered and TABBOX_TAB_HOVER_FADE or TABBOX_TAB_IDLE_FADE, true)
                     Container.Visible = false
 
                     if Tabbox.ActiveTab == Tab then
