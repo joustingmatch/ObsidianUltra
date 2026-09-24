@@ -7965,6 +7965,391 @@ do
         return Label
     end
 
+    --// A list of rows whose right hand side carries a live status: either a plain
+    --// word ("Up") or, once a row is handed a Time, the wait until that moment.
+    --// Clicking any status flips the whole list between the two readings of the
+    --// same instant -- the countdown and the clock time it lands on -- the way a
+    --// date in a document can be shown either way without the value moving.
+    --// The body scrolls past MaxHeight so a long list cannot stretch the groupbox.
+    function Funcs:AddStatusLabel(Idx, Info)
+        if self.Destroyed then return nil end
+
+        if typeof(Idx) == "table" then
+            Info = Idx
+            Idx = Info.Idx
+        end
+
+        Info = Library:Validate(Info or {}, {
+            Items = {},                 --// { { Text, Status, Time, Suffix, StatusColor, TimeColor } }
+            Status = "Up",              --// row default, shown while there is nothing to wait for
+            Mode = "Relative",          --// "Relative" or "Absolute"
+            MaxHeight = 120,            --// the list scrolls rather than grow past this
+            RowHeight = 18,
+            TimeFormat = "%H:%M",       --// os.date pattern used by the absolute reading
+            StatusColor = nil,          --// Color3 or a scheme key, for the "Up" state
+            TimeColor = nil,            --// Color3 or a scheme key, for the counting state
+            Tooltip = nil,
+            Callback = function() end,
+            Visible = true,
+        })
+
+        local Groupbox = self
+        local Container = Groupbox.Container
+
+        local StatusLabel = {
+            Connections = {},
+            RowConnections = {},
+            Rows = {},
+            Destroyed = false,
+
+            Items = Info.Items,
+            Status = Info.Status,
+            Mode = Info.Mode == "Absolute" and "Absolute" or "Relative",
+            MaxHeight = Info.MaxHeight,
+            RowHeight = Info.RowHeight,
+            TimeFormat = Info.TimeFormat,
+            StatusColor = Info.StatusColor,
+            TimeColor = Info.TimeColor,
+            Tooltip = Info.Tooltip,
+            Callback = Info.Callback,
+            Visible = Info.Visible,
+
+            Type = "StatusLabel",
+            Parent = Groupbox,
+        }
+
+        local Holder = New("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, Info.RowHeight),
+            Visible = StatusLabel.Visible,
+            Parent = Container,
+        })
+
+        local List = New("ScrollingFrame", {
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1,
+            CanvasSize = UDim2.fromScale(0, 0),
+            ScrollBarImageColor3 = "OutlineColor",
+            ScrollBarThickness = 2,
+            Size = UDim2.fromScale(1, 1),
+            Parent = Holder,
+        })
+
+        local Layout = New("UIListLayout", {
+            Padding = UDim.new(0, 2),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Parent = List,
+        })
+
+        --// Whole units only: a status that re-renders every frame reads as noise,
+        --// and the unit that is shown is the one the caller can act on
+        local function FormatWait(Remaining: number): string
+            Remaining = math.max(math.floor(Remaining), 0)
+
+            if Remaining < 60 then
+                return string.format("%d sec", Remaining)
+            elseif Remaining < 3600 then
+                return string.format("%d min", Remaining // 60)
+            elseif Remaining < 86400 then
+                local Hours = Remaining // 3600
+                local Minutes = (Remaining % 3600) // 60
+
+                return Minutes > 0 and string.format("%d hr %d min", Hours, Minutes) or string.format("%d hr", Hours)
+            end
+
+            local Days = Remaining // 86400
+            local Hours = (Remaining % 86400) // 3600
+
+            return Hours > 0 and string.format("%d d %d hr", Days, Hours) or string.format("%d d", Days)
+        end
+
+        local function ApplyColor(Button: TextButton, Color: any, Fallback: string)
+            if typeof(Color) == "Color3" then
+                Button.TextColor3 = Color
+                Library.Registry[Button].TextColor3 = nil
+                return
+            end
+
+            local Key = typeof(Color) == "string" and Library.Scheme[Color] and Color or Fallback
+
+            Button.TextColor3 = Library.Scheme[Key]
+            Library.Registry[Button].TextColor3 = Key
+        end
+
+        --// The rows carry their own height, so the holder only has to stop growing
+        --// once the list is taller than the caller allowed
+        local function Resize()
+            local Content = Layout.AbsoluteContentSize.Y / Library.DPIScale
+            local Height = math.min(math.max(Content, StatusLabel.RowHeight), StatusLabel.MaxHeight)
+
+            Holder.Size = UDim2.new(1, 0, 0, math.ceil(Height))
+            Groupbox:Resize()
+        end
+
+        local function RenderRow(Row)
+            local Item = Row.Item
+            --// Is there still something to wait for? A Time in the past means the
+            --// thing has happened, which is exactly what the plain status word says
+            local Waiting = typeof(Item.Time) == "number" and Item.Time - os.time() > 0
+
+            if not Waiting then
+                Row.Status.Text = Item.Status or StatusLabel.Status
+                ApplyColor(Row.Status, Item.StatusColor or StatusLabel.StatusColor, "AccentColor")
+            else
+                local Body = StatusLabel.Mode == "Absolute"
+                        and os.date(Item.TimeFormat or StatusLabel.TimeFormat, Item.Time)
+                    or FormatWait(Item.Time - os.time())
+
+                Row.Status.Text = Item.Suffix and (Body .. " " .. Item.Suffix) or Body
+                ApplyColor(Row.Status, Item.TimeColor or StatusLabel.TimeColor, "FontColor")
+            end
+
+            --// Only a live countdown is worth clicking: with nothing to wait for
+            --// both readings say the same word
+            Row.Status.Active = Waiting
+            if not Row.Hovering then
+                Row.Status.TextTransparency = Waiting and 0.2 or 0
+            end
+        end
+
+        local function CreateRow(Item, Order)
+            local RowHolder = New("Frame", {
+                BackgroundTransparency = 1,
+                LayoutOrder = Order,
+                Size = UDim2.new(1, 0, 0, StatusLabel.RowHeight),
+                Parent = List,
+            })
+
+            local TextLabel = New("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, -8, 1, 0),
+                Text = Item.Text or "",
+                TextSize = 14,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = RowHolder,
+            })
+
+            --// The status sits in a pill so a countdown changing width every minute
+            --// does not look like the row itself is twitching
+            local Status = New("TextButton", {
+                AnchorPoint = Vector2.new(1, 0.5),
+                AutomaticSize = Enum.AutomaticSize.X,
+                AutoButtonColor = false,
+                BackgroundColor3 = "MainColor",
+                BackgroundTransparency = 1,
+                Position = UDim2.new(1, 0, 0.5, 0),
+                Size = UDim2.new(0, 0, 1, 0),
+                Text = "",
+                TextSize = 14,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                Parent = RowHolder,
+            })
+
+            New("UIPadding", {
+                PaddingLeft = UDim.new(0, 6),
+                PaddingRight = UDim.new(0, 6),
+                Parent = Status,
+            })
+
+            table.insert(
+                Library.PillCorners,
+                New("UICorner", {
+                    CornerRadius = Library.CornerRadius > 0 and UDim.new(1, 0) or UDim.new(0, 0),
+                    Parent = Status,
+                })
+            )
+
+            local Row = {
+                Item = Item,
+                Holder = RowHolder,
+                TextLabel = TextLabel,
+                Status = Status,
+                Hovering = false,
+            }
+
+            table.insert(StatusLabel.RowConnections, Status.MouseEnter:Connect(function()
+                if not Status.Active then
+                    return
+                end
+
+                Row.Hovering = true
+                TweenService:Create(Status, Library.TweenInfo, {
+                    BackgroundTransparency = 0,
+                    TextTransparency = 0,
+                }):Play()
+            end))
+
+            table.insert(StatusLabel.RowConnections, Status.MouseLeave:Connect(function()
+                Row.Hovering = false
+                TweenService:Create(Status, Library.TweenInfo, {
+                    BackgroundTransparency = 1,
+                    TextTransparency = Status.Active and 0.2 or 0,
+                }):Play()
+            end))
+
+            table.insert(StatusLabel.RowConnections, Status.MouseButton1Click:Connect(function()
+                if not Status.Active then
+                    return
+                end
+
+                StatusLabel:Toggle()
+            end))
+
+            if typeof(Item.Tooltip) == "string" then
+                Library:AddTooltip(Item.Tooltip, nil, Status)
+            end
+
+            RenderRow(Row)
+            return Row
+        end
+
+        local function ClearRows()
+            for _, Connection in StatusLabel.RowConnections do
+                Connection:Disconnect()
+            end
+            table.clear(StatusLabel.RowConnections)
+
+            for _, Row in StatusLabel.Rows do
+                Row.Holder:Destroy()
+            end
+            table.clear(StatusLabel.Rows)
+        end
+
+        function StatusLabel:Display()
+            for _, Row in StatusLabel.Rows do
+                RenderRow(Row)
+            end
+        end
+
+        function StatusLabel:SetItems(Items)
+            StatusLabel.Items = Items or {}
+
+            ClearRows()
+            for Order, Item in StatusLabel.Items do
+                table.insert(StatusLabel.Rows, CreateRow(Item, Order))
+            end
+
+            Resize()
+        end
+
+        function StatusLabel:AddItem(Item)
+            table.insert(StatusLabel.Items, Item)
+            table.insert(StatusLabel.Rows, CreateRow(Item, #StatusLabel.Items))
+
+            Resize()
+        end
+
+        --// Same item table the caller handed over, so a row can be updated in
+        --// place (a new Time, say) and pushed to the screen without a rebuild
+        function StatusLabel:UpdateItem(Item)
+            for _, Row in StatusLabel.Rows do
+                if Row.Item == Item then
+                    Row.TextLabel.Text = Item.Text or ""
+                    RenderRow(Row)
+                    return
+                end
+            end
+        end
+
+        function StatusLabel:Clear()
+            StatusLabel.Items = {}
+
+            ClearRows()
+            Resize()
+        end
+
+        function StatusLabel:SetMode(Mode: string)
+            StatusLabel.Mode = Mode == "Absolute" and "Absolute" or "Relative"
+            StatusLabel:Display()
+        end
+
+        function StatusLabel:Toggle()
+            StatusLabel:SetMode(StatusLabel.Mode == "Absolute" and "Relative" or "Absolute")
+            Library:SafeCallback(StatusLabel.Callback, StatusLabel.Mode)
+        end
+
+        function StatusLabel:SetMaxHeight(Height: number)
+            StatusLabel.MaxHeight = Height
+            Resize()
+        end
+
+        function StatusLabel:SetVisible(Visible: boolean)
+            StatusLabel.Visible = Visible
+            Holder.Visible = Visible
+
+            Groupbox:Resize()
+        end
+
+        --// One heartbeat for the whole list, throttled to a tick a second: the
+        --// shown values only move in whole units, so anything finer is work
+        --// nobody sees
+        local Elapsed = 0
+        table.insert(StatusLabel.Connections, RunService.Heartbeat:Connect(function(Delta)
+            if StatusLabel.Destroyed or not StatusLabel.Visible then
+                return
+            end
+
+            Elapsed += Delta
+            if Elapsed < 1 then
+                return
+            end
+            Elapsed = 0
+
+            StatusLabel:Display()
+        end))
+
+        table.insert(StatusLabel.Connections, Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(Resize))
+
+        if typeof(StatusLabel.Tooltip) == "string" then
+            StatusLabel.TooltipTable = Library:AddTooltip(StatusLabel.Tooltip, nil, Holder)
+        end
+
+        StatusLabel:SetItems(StatusLabel.Items)
+
+        StatusLabel.Holder = Holder
+        StatusLabel.List = List
+        StatusLabel.Container = Container
+
+        table.insert(Groupbox.Elements, StatusLabel)
+
+        if Idx then
+            Labels[Idx] = StatusLabel
+        else
+            table.insert(Labels, StatusLabel)
+        end
+
+        function StatusLabel:Destroy()
+            StatusLabel.Destroyed = true
+
+            for _, Connection in StatusLabel.Connections do
+                Connection:Disconnect()
+            end
+            ClearRows()
+
+            Holder:Destroy()
+
+            local ElemIdx = table.find(Groupbox.Elements, StatusLabel)
+            if ElemIdx then
+                table.remove(Groupbox.Elements, ElemIdx)
+            end
+
+            Groupbox:Resize()
+
+            if Idx then
+                Labels[Idx] = nil
+            else
+                local LblIdx = table.find(Labels, StatusLabel)
+                if LblIdx then
+                    table.remove(Labels, LblIdx)
+                end
+            end
+        end
+
+        return StatusLabel
+    end
+
+
     function Funcs:AddButton(...)
         if self.Destroyed then return nil end
 

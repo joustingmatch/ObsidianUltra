@@ -236,6 +236,29 @@ LeftGroupBox:AddLabel("SecondTestLabel", {
 -- Options.TestLabel:SetText("first changed!")
 -- Options.SecondTestLabel:SetText("second changed!")
 
+-- Groupbox:AddStatusLabel
+-- Arguments: Idx, Options
+-- A scrolling list of rows with a live status on the right. A row with a Time
+-- counts down to it; clicking any countdown flips the whole list between the
+-- countdown and the clock time it lands on. The list scrolls past MaxHeight so
+-- it never stretches the groupbox.
+LeftGroupBox:AddStatusLabel("Timers", {
+	MaxHeight = 120, -- Defaults to 120
+	Status = "Up", -- Shown by a row with no Time left to wait, defaults to "Up"
+	Items = {
+		{ Text = "Akazo" },
+		{ Text = "Enru" },
+		{ Text = "Yahari", Time = os.time() + 9 * 60, Suffix = "(night)" },
+		{ Text = "Reaper", Time = os.time() + 2 * 3600 },
+	},
+	Callback = function(Mode)
+		print("Timers now showing", Mode, "times")
+	end,
+})
+
+-- Library.Labels.Timers:AddItem({ Text = "Domae", Time = os.time() + 300 })
+-- Library.Labels.Timers:SetMode("Absolute")
+
 -- Groupbox:AddDivider
 -- Arguments: None
 LeftGroupBox:AddDivider()

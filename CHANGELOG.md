@@ -1,3 +1,19 @@
+## 24.09.2026 (2)
+
+```diff
+[additions]
++ Groupbox:AddStatusLabel(Idx, Info) -- a scrolling list of rows, each with a live
+  status on its right. A row with a Time counts down to that moment ("9 min", "2 hr");
+  a row without one, or past it, shows the plain status word ("Up") in accent. Clicking
+  any countdown flips the whole list between the countdown and the clock time it lands
+  on -- two readings of the same instant, the way a date in a document can be shown
+  either way. Rows live in a ScrollingFrame capped at MaxHeight (120 by default), so a
+  long list scrolls instead of stretching the groupbox. Items are { Text, Status, Time,
+  Suffix, StatusColor, TimeColor, TimeFormat, Tooltip }; the element exposes SetItems,
+  AddItem, UpdateItem, Clear, SetMode, Toggle, SetMaxHeight and SetVisible, and is
+  indexed into Library.Labels. One heartbeat per list, throttled to a tick a second.
+```
+
 ## 24.09.2026
 
 ```diff

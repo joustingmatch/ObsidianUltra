@@ -504,6 +504,57 @@ export type Label = {
     Destroy: (self: Label) -> (),
 }
 
+export type StatusItem = {
+    Text: string,
+    Status: string?,
+    Time: number?,
+    Suffix: string?,
+    StatusColor: (Color3 | string)?,
+    TimeColor: (Color3 | string)?,
+    TimeFormat: string?,
+    Tooltip: string?,
+}
+
+export type StatusLabelInfo = {
+    Items: { StatusItem }?,
+    Status: string?,
+    Mode: ("Relative" | "Absolute")?,
+    MaxHeight: number?,
+    RowHeight: number?,
+    TimeFormat: string?,
+    StatusColor: (Color3 | string)?,
+    TimeColor: (Color3 | string)?,
+    Tooltip: string?,
+    Callback: ((Mode: string) -> ())?,
+    Visible: boolean?,
+    Idx: string?,
+}
+
+export type StatusLabel = {
+    Items: { StatusItem },
+    Status: string,
+    Mode: string,
+    MaxHeight: number,
+    RowHeight: number,
+    Visible: boolean,
+    Type: "StatusLabel",
+    Holder: Frame,
+    List: ScrollingFrame,
+    Container: GuiObject,
+    Parent: BaseGroupbox,
+
+    Display: (self: StatusLabel) -> (),
+    SetItems: (self: StatusLabel, Items: { StatusItem }) -> (),
+    AddItem: (self: StatusLabel, Item: StatusItem) -> (),
+    UpdateItem: (self: StatusLabel, Item: StatusItem) -> (),
+    Clear: (self: StatusLabel) -> (),
+    SetMode: (self: StatusLabel, Mode: string) -> (),
+    Toggle: (self: StatusLabel) -> (),
+    SetMaxHeight: (self: StatusLabel, Height: number) -> (),
+    SetVisible: (self: StatusLabel, Visible: boolean) -> (),
+    Destroy: (self: StatusLabel) -> (),
+}
+
 export type Button = {
     Text: string,
     Func: (FromKeyPicker: boolean?) -> (),
@@ -841,6 +892,7 @@ export type Divider = {
 
 export type Element =
     Label
+    | StatusLabel
     | Button
     | Toggle
     | Input
@@ -878,6 +930,7 @@ export type BaseGroupbox = {
         DoesWrap: boolean?,
         Idx: string?
     ) -> Label,
+    AddStatusLabel: (self: Groupbox, Idx: string | StatusLabelInfo, Info: StatusLabelInfo?) -> StatusLabel,
     AddButton: (self: Groupbox, Info: ButtonInfo | string, Func: (() -> ())?, Idx: string?) -> Button,
     AddCheckbox: (self: Groupbox, Idx: string, Info: ToggleInfo) -> Toggle,
     AddToggle: (self: Groupbox, Idx: string, Info: ToggleInfo) -> Toggle,
