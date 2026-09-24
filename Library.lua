@@ -2652,11 +2652,9 @@ local TAB_CHIP_RADIUS = 9
 local TAB_BAR_RADIUS = 8
 
 --// The hover well. A compact row is a square the size of the chip it shadows; an
---// expanded row is the whole card, so it has to grow back out through the button's
---// own padding to reach the edges the active card fills.
+--// expanded row is the whole card, and the row padding sits on the button's inner
+--// holder, so the well simply fills the button to reach the edges the card fills.
 local TAB_WELL_HOVER_SIZE = 27
-local TAB_ROW_PAD_X = 12
-local TAB_ROW_PAD_Y = 11
 --// A wide surface carries far more light than a 24px square at the same alpha, so
 --// the two wells are tuned apart rather than sharing one number
 local TAB_WELL_COMPACT_ALPHA = 0.88
@@ -2866,9 +2864,10 @@ function Library:SkinTabButton(Button: TextButton)
                         Warm and TAB_WELL_HOVER_SIZE or TAB_CHIP_REST_SIZE,
                         Warm and TAB_WELL_HOVER_SIZE or TAB_CHIP_REST_SIZE
                     )
-                --// Grown back out through the button's padding, so the hovered row
-                --// covers exactly what the open row's own fill covers
-                or UDim2.new(1, TAB_ROW_PAD_X * 2, 1, TAB_ROW_PAD_Y * 2),
+                --// The row padding lives on the button's inner holder, not on the
+                --// button, so the well is already the whole card and covers exactly
+                --// what the open row's own fill covers
+                or UDim2.fromScale(1, 1),
         }):Play()
 
         Chip.Visible = Skin.Compact
