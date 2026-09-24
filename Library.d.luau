@@ -231,6 +231,7 @@ export type DropdownInfo = {
     Multi: boolean?,
     DragSelect: boolean?,
     MaxVisibleDropdownItems: number?,
+    KeepDisabledValuePosition: boolean?,
     --// Built in "Select All" / "Deselect All" row, multi dropdowns only (default true)
     SelectAllButtons: boolean?,
     --// Expandable adds a button that opens the values in a panel over the window
@@ -444,6 +445,7 @@ export type KeyPicker = {
     Clicked: () -> (),
     Type: "KeyPicker",
     Menu: ContextMenu,
+    MenuVisible: boolean,
 
     Display: (self: KeyPicker) -> (),
     Update: (self: KeyPicker) -> (),
@@ -453,6 +455,7 @@ export type KeyPicker = {
     DoClick: (self: KeyPicker) -> (),
     SetValue: (self: KeyPicker, Data: { string }) -> (),
     SetText: (self: KeyPicker, Text: string) -> (),
+    SetMenuVisibility: (self: KeyPicker, Visible: boolean) -> (),
     Destroy: (self: KeyPicker) -> (),
 }
 
@@ -490,6 +493,7 @@ export type Label = {
     TextLabel: TextLabel,
     Container: GuiObject,
     Holder: TextLabel,
+    Parent: BaseGroupbox,
 
     SetVisible: (self: Label, Visible: boolean) -> (),
     SetText: (self: Label, Text: string) -> (),
@@ -516,6 +520,7 @@ export type Button = {
     Stroke: UIStroke,
     Holder: Frame,
     SubButton: SubButton?,
+    Parent: BaseGroupbox,
 
     AddButton: (self: Button, Info: ButtonInfo | string, Func: (() -> ())?, Idx: string?) -> SubButton,
     UpdateColors: (self: Button) -> (),
@@ -563,6 +568,7 @@ export type Toggle = {
     TextLabel: TextLabel,
     Container: GuiObject,
     Holder: TextButton,
+    Parent: BaseGroupbox,
 
     UpdateColors: (self: Toggle) -> (),
     Display: (self: Toggle) -> (),
@@ -652,6 +658,7 @@ export type Dropdown = {
     ValueImages: { [any]: string }?,
     Multi: boolean,
     DragSelect: boolean,
+    KeepDisabledValuePosition: boolean,
     SpecialType: "Player" | "Team"?,
     ExcludeLocalPlayer: boolean?,
     EnablePlayerImages: boolean?,
@@ -828,6 +835,7 @@ export type UIPassthrough = {
 export type Divider = {
     Type: "Divider",
     Holder: Frame,
+    Parent: BaseGroupbox,
     Destroy: (self: Divider) -> (),
 }
 
@@ -863,7 +871,7 @@ export type Option =
 
 --// Container Types
 export type BaseGroupbox = {
-    AddDivider: (self: Groupbox, MarginTop: number?, MarginBottom: number?) -> (),
+    AddDivider: (self: Groupbox, Info: (string | { Text: string?, Margin: number?, MarginTop: number?, MarginBottom: number? })?) -> (),
     AddLabel: (
         self: Groupbox,
         Info: { Text: string, DoesWrap: boolean?, Size: number?, Visible: boolean?, Idx: string? } | string,
@@ -928,6 +936,8 @@ export type Groupbox = BaseGroupbox & {
     PopOutEnabled: boolean,
     PopOutFloat: Frame?,
     PopOutPlaceholder: Frame?,
+    PopOutMaxHeight: number?,
+    PopOutWidth: number?,
     BoxHolder: Frame,
     Holder: Frame,
     Container: Frame,
@@ -942,6 +952,8 @@ export type Groupbox = BaseGroupbox & {
     SetPoppedOut: (self: Groupbox, Value: boolean, FloatPosition: UDim2?) -> (),
     TogglePoppedOut: (self: Groupbox) -> (),
     RefreshPopOutPlaceholder: (self: Groupbox) -> (),
+    SetMaxPopOutHeight: (self: Groupbox, Height: number?) -> (),
+    SetPopOutWidth: (self: Groupbox, Width: number?) -> (),
 }
 
 export type SubTab = BaseGroupbox & {
@@ -949,6 +961,7 @@ export type SubTab = BaseGroupbox & {
     ButtonHolder: TextButton,
     Container: Frame,
     Tab: Tab,
+    Tabbox: Tabbox,
     Elements: { [number]: Element },
     DependencyBoxes: { [number]: DependencyBox },
 
@@ -965,6 +978,8 @@ export type Tabbox = {
     PopOutEnabled: boolean,
     PopOutFloat: Frame?,
     PopOutPlaceholder: Frame?,
+    PopOutMaxHeight: number?,
+    PopOutWidth: number?,
     ActiveTab: SubTab?,
     BoxHolder: Frame,
     Holder: Frame,
@@ -977,6 +992,8 @@ export type Tabbox = {
     SetPoppedOut: (self: Tabbox, Value: boolean, FloatPosition: UDim2?) -> (),
     TogglePoppedOut: (self: Tabbox) -> (),
     RefreshPopOutPlaceholder: (self: Tabbox) -> (),
+    SetMaxPopOutHeight: (self: Tabbox, Height: number?) -> (),
+    SetPopOutWidth: (self: Tabbox, Width: number?) -> (),
 }
 
 --// A tab nested inside a Tab, shown as a row of buttons above the content
@@ -1042,6 +1059,8 @@ export type Tab = {
     ActiveSubTab: NestedTab?,
     Sides: { ScrollingFrame },
     WarningBox: { IsNormal: boolean, LockSize: boolean, Visible: boolean, Title: string, Text: string },
+    Tooltip: string?,
+    TooltipTable: Tooltip?,
 
     UpdateWarningBox: (
         self: Tab,
@@ -1059,6 +1078,8 @@ export type Tab = {
             Collapsed: boolean?,
             DisableCollapsing: boolean?,
             PopOut: boolean?,
+            MaxPopOutHeight: number?,
+            PopOutWidth: number?,
         }
     ) -> Groupbox,
     AddLeftGroupbox: (
@@ -1077,7 +1098,7 @@ export type Tab = {
         Collapsed: boolean?,
         DisableCollapsing: boolean?
     ) -> Groupbox,
-    AddTabbox: (self: Tab, Info: { Side: number | string, Name: string?, PopOut: boolean? }) -> Tabbox,
+    AddTabbox: (self: Tab, Info: { Side: number | string, Name: string?, PopOut: boolean?, MaxPopOutHeight: number?, PopOutWidth: number? }) -> Tabbox,
     AddLeftTabbox: (self: Tab, Name: string?) -> Tabbox,
     AddRightTabbox: (self: Tab, Name: string?) -> Tabbox,
     AddPlayerInfo: (self: Tab, Idx: string?, Info: PlayerInfoOptions) -> PlayerInfo,
@@ -1094,6 +1115,7 @@ export type Tab = {
     Hide: (self: Tab) -> (),
     SetVisible: (self: Tab, Visible: boolean) -> (),
     SetOrder: (self: Tab, Order: number) -> (),
+    SetTooltip: (self: Tab, Text: string?) -> (),
 }
 
 export type KeyTab = BaseGroupbox & {
@@ -1101,6 +1123,8 @@ export type KeyTab = BaseGroupbox & {
     IsKeyTab: true,
     Window: Window,
     Container: ScrollingFrame,
+    Tooltip: string?,
+    TooltipTable: Tooltip?,
 
     AddKeyBox: (self: KeyTab, ExpectedKey: string?, Callback: (Success: boolean, Key: string) -> ()) -> (),
     Resize: (self: KeyTab) -> (),
@@ -1108,6 +1132,7 @@ export type KeyTab = BaseGroupbox & {
     Show: (self: KeyTab) -> (),
     Hide: (self: KeyTab) -> (),
     SetVisible: (self: KeyTab, Visible: boolean) -> (),
+    SetTooltip: (self: KeyTab, Text: string?) -> (),
 }
 
 export type LoadingErrorButtonInfo = {
@@ -1208,7 +1233,7 @@ export type Window = {
     ) -> Tab,
     AddKeyTab: (
         self: Window,
-        Info: { Name: string, Icon: string?, Description: string? } | string,
+        Info: { Name: string, Icon: string?, Description: string?, Tooltip: string?, Order: number? } | string,
         Icon: string?,
         Description: string?
     ) -> KeyTab,
@@ -1254,7 +1279,7 @@ export type Window = {
         Animations: { [string]: boolean }?,
         TabTransitionTime: number?,
         TabSwipeOffset: number?,
-        TabSwipeFrom: ("left" | "right" | "top" | "bottom" | string)?
+        TabSwipeFrom: ("left" | "right" | "top" | "bottom" | "auto" | string)?
     ) -> (),
     Toggle: (self: Window, Value: boolean?) -> (),
 }
@@ -1363,9 +1388,20 @@ export type Library = {
         Rotation: number?
     ) -> (),
     Validate: (self: Library, Table: { [string]: any }, Template: { [string]: any }) -> { [string]: any },
-    ResetCursorIcon: (self: Library) -> (),
+    Cursor: {
+        ChangeCrossColor: (self: Library, Color: Color3) -> (),
+        ResetCross: (self: Library) -> (),
+        ChangeIcon: (self: Library, ImageId: string) -> (),
+        ChangeIconColor: (self: Library, Color: Color3) -> (),
+        ChangeIconSize: (self: Library, Size: UDim2) -> (),
+        ResetIcon: (self: Library) -> (),
+    },
+    ChangeCursorCrossColor: (self: Library, Color: Color3) -> (),
+    ResetCursorCross: (self: Library) -> (),
     ChangeCursorIcon: (self: Library, ImageId: string) -> (),
+    ChangeCursorIconColor: (self: Library, Color: Color3) -> (),
     ChangeCursorIconSize: (self: Library, Size: UDim2) -> (),
+    ResetCursorIcon: (self: Library) -> (),
     GetBetterColor: (self: Library, Color: Color3, Add: number) -> Color3,
     GetLighterColor: (self: Library, Color: Color3) -> Color3,
     GetDarkerColor: (self: Library, Color: Color3) -> Color3,
@@ -1550,7 +1586,15 @@ export type Library = {
             }?,
             TabTransitionTime: number?,
             TabSwipeOffset: number?,
-            TabSwipeFrom: ("left" | "right" | "top" | "bottom" | string)?,
+            TabSwipeFrom: ("left" | "right" | "top" | "bottom" | "auto" | string)?,
+            TabButtonsStyle: {
+                Gap: number?,
+                Padding: number?,
+                CornerRadius: number?,
+                Indicator: boolean?,
+                IndicatorWidth: number?,
+                IndicatorHeight: number?,
+            }?,
         }
     ) -> Window,
     Toggle: (self: Library, Value: boolean?) -> (),

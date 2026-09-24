@@ -1,3 +1,29 @@
+## 24.09.2026
+
+```diff
+[changes]
+* Merged upstream Obsidian (44 commits, through "feat: SetPopOutWidth"). Upstream won
+  every API and behaviour conflict; the fork kept its own styling where upstream had
+  only restyled the same region. What this changes for callers:
+* Library:PlayTabAnimation(Tab, Showing, OnComplete, SwipeFrom) now takes the tab
+  table rather than its canvas -- upstream animates Tab.Container and dropped the
+  CanvasGroup wrapper around tab contents, which is their fix for blurry tab text. A
+  bare container instance is still accepted, so sub tabs pass their own canvas as
+  before, and a CanvasGroup container still fades as well as slides.
+* Tab buttons gained upstream's ButtonHolder, TabIndicator and TabButtonsStyle. The
+  chip skin (Library:SkinTabButton) still owns the corner, the chip and the active
+  state, so upstream's own UICorner is not created and CornerRadius has no effect.
+  TabButtonsStyle defaults to Gap = 4, Padding = 6 here, which is the spacing the
+  skin was drawn against and what keeps MinSidebarWidth at 76.
+* Search is upstream's scored implementation: every tab is searched and the window
+  switches to the most prominent match. Sub tab recursion and GlobalSearch are kept on
+  top -- GlobalSearch now only decides whether tabs other than the best match keep
+  their filtered state.
+* Tooltips take upstream's cursor-aware placement; the pop animation stays.
+* Example.lua is upstream's, pointed back at this fork's raw URL. The fork's own
+  element demos are no longer in it.
+```
+
 ## 21.09.2026 (2)
 
 ```diff
@@ -118,6 +144,58 @@
 ```diff
 [features]
 + Groupbox:AddPriorityDropdown(Idx, Info) — a searchable, drag-to-rank priority list (no selecting; drag rows above/below to order them). Grab a row anywhere, clamped + auto-scroll, mouse/touch. Has an expand panel (Expand/Collapse/ToggleExpanded/IsExpanded) for easier management. Saves/loads with SaveManager.
+```
+
+## 20.09.2026
+
+```diff
+[features]
++ KeepDisabledValuePosition for Dropdown (keeps DisabledValues in their Values order instead of moving them to the end)
++ SetMaxPopOutHeight(MaxHeight: number) for popout groupboxes and tabboxes
++ SetPopOutWidth(Width: number) for popout groupboxes and tabboxes
++ KeyPicker:SetMenuVisibility(Visible: boolean)
+
+[fixed]
++ Fixed text and UI elements sizing incorrectly at different DPI scales or screen resolutions
++ Fixed dropdown arrows overlapping the footer when scrolling
+```
+
+## 04.09.2026
+
+```diff
+[features]
++ TabButtonsStyle for CreateWindow (Gap, Padding, CornerRadius, Indicator, IndicatorWidth, IndicatorHeight)
++ Library.Cursor:ChangeCrossColor(Color)
++ Library.Cursor:ResetCross()
++ Library.Cursor:ChangeIcon(ImageId)
++ Library.Cursor:ChangeIconColor(Color)
++ Library.Cursor:ChangeIconSize(Size)
++ Library.Cursor:ResetIcon()
++ Library.Cursor:ResetCursor()
+
+[changes]
++ Library:ChangeCursorCrossColor, ResetCursorCross, ChangeCursorIcon, ChangeCursorIconColor, ChangeCursorIconSize and ResetCursorIcon are deprecated; use Library.Cursor instead
+
+[fixed]
++ Fixed KeyPickers not updating visually when toggled from the keybind menu
+```
+
+## 31.08.2026
+
+```diff
+[features]
++ Tooltip support for tab buttons
+
+[changes]
++ ColorPickers use the smallest possible size on Mobile now
++ SetValue will now set the Value but will not run the Callbacks when the element is disabled
++ Search now switches to the tab with the most prominent match
+
+[fixed]
++ Fixed notifications resizing incorrectly
++ Fixed Toggle and Lock buttons on mobile impossible to click
++ Fixed KeyPickers and ColorPickers still able to be changed while disabled in the UI
++ Fixed KeyPickers and ColorPickers not updating visually if they are disabled or not
 ```
 
 ## 25.08.2026
