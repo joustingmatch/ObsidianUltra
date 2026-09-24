@@ -14868,12 +14868,21 @@ end
 
 function Library:CreateWindow(WindowInfo)
     WindowInfo = Library:Validate(WindowInfo, Templates.Window)
-    local ViewportSize: Vector2 = workspace.CurrentCamera.ViewportSize
-    if RunService:IsStudio() and ViewportSize.X <= 5 and ViewportSize.Y <= 5 then
-        repeat
-            ViewportSize = workspace.CurrentCamera.ViewportSize
-            task.wait()
-        until ViewportSize.X > 5 and ViewportSize.Y > 5
+    --// On auto-execute the camera (or its viewport) may not be ready yet, so wait
+    --// until it can fit the window's minimum. CurrentCamera can be replaced, so
+    --// re-read it each check, and give up after a few seconds.
+    local function ReadViewportSize(): Vector2
+        local Camera = workspace.CurrentCamera
+        return Camera and Camera.ViewportSize or Vector2.zero
+    end
+
+    local MinViewportX = WindowInfo.MinContainerWidth + 48 + 1 + 64
+    local MinViewportY = 300
+    local ViewportSize: Vector2 = ReadViewportSize()
+    local ViewportDeadline = os.clock() + 5
+    while (ViewportSize.X < MinViewportX or ViewportSize.Y < MinViewportY) and os.clock() < ViewportDeadline do
+        task.wait()
+        ViewportSize = ReadViewportSize()
     end
 
     local MaxX = ViewportSize.X - 64
@@ -16633,7 +16642,8 @@ function Library:CreateWindow(WindowInfo)
     end
 
     function Window:SetSidebarWidth(Width)
-        Width = math.clamp(Width, 48, MainFrame.Size.X.Offset - WindowInfo.MinContainerWidth - 1)
+        local maxWidth = math.max(48, MainFrame.Size.X.Offset - WindowInfo.MinContainerWidth - 1)
+        Width = math.clamp(Width, 48, maxWidth)
 
         DividerLine.Position = UDim2.fromOffset(Width, 0)
 
