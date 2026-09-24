@@ -8063,17 +8063,17 @@ do
             return Hours > 0 and string.format("%d d %d hr", Days, Hours) or string.format("%d d", Days)
         end
 
+        --// A row that has left the ScreenGui has already been dropped from the
+        --// registry, so the entry is written through rather than indexed blind
         local function ApplyColor(Button: TextButton, Color: any, Fallback: string)
             if typeof(Color) == "Color3" then
-                Button.TextColor3 = Color
-                Library.Registry[Button].TextColor3 = nil
+                SetSchemeProperty(Button, "TextColor3", Color)
                 return
             end
 
             local Key = typeof(Color) == "string" and Library.Scheme[Color] and Color or Fallback
 
-            Button.TextColor3 = Library.Scheme[Key]
-            Library.Registry[Button].TextColor3 = Key
+            SetSchemeProperty(Button, "TextColor3", Key)
         end
 
         --// The rows carry their own height, so the holder only has to stop growing
