@@ -17384,11 +17384,14 @@ function Library:CreateWindow(WindowInfo)
                 Size = UDim2.fromScale(1, 1),
                 Parent = TabButton,
             })
+            --// These have to match what compacting sets on Library.TabButtons,
+            --// or a window built compact carries different metrics than one that
+            --// was compacted after the fact
             local ButtonPadding = New("UIPadding", {
-                PaddingBottom = UDim.new(0, IsCompact and 6 or 11),
-                PaddingLeft = UDim.new(0, IsCompact and 6 or 12),
-                PaddingRight = UDim.new(0, IsCompact and 6 or 12),
-                PaddingTop = UDim.new(0, IsCompact and 6 or 11),
+                PaddingBottom = UDim.new(0, 11),
+                PaddingLeft = UDim.new(0, IsCompact and 11 or 12),
+                PaddingRight = UDim.new(0, IsCompact and 11 or 12),
+                PaddingTop = UDim.new(0, 11),
                 Parent = ButtonHolder,
             })
             TabLabel = New("TextLabel", {
@@ -20119,11 +20122,14 @@ function Library:CreateWindow(WindowInfo)
                 Size = UDim2.fromScale(1, 1),
                 Parent = TabButton,
             })
+            --// These have to match what compacting sets on Library.TabButtons,
+            --// or a window built compact carries different metrics than one that
+            --// was compacted after the fact
             local ButtonPadding = New("UIPadding", {
-                PaddingBottom = UDim.new(0, IsCompact and 6 or 11),
-                PaddingLeft = UDim.new(0, IsCompact and 6 or 12),
-                PaddingRight = UDim.new(0, IsCompact and 6 or 12),
-                PaddingTop = UDim.new(0, IsCompact and 6 or 11),
+                PaddingBottom = UDim.new(0, 11),
+                PaddingLeft = UDim.new(0, IsCompact and 11 or 12),
+                PaddingRight = UDim.new(0, IsCompact and 11 or 12),
+                PaddingTop = UDim.new(0, 11),
                 Parent = ButtonHolder,
             })
 
