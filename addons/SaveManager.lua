@@ -758,7 +758,7 @@ function SaveManager:LoadAutoloadConfig()
     local ConfigName, Success, FetchErrorMessage = SaveManager:GetAutoloadConfig()
     if not Success or FetchErrorMessage then
         if FetchErrorMessage ~= "Autoload config is not set" then
-            SaveManager.Library:Notify(string.format("Failed to load autoload config: %s", FetchErrorMessage))
+            SaveManager.Library:Notify(string.format("Couldn't load your start profile: %s", FetchErrorMessage))
         end
 
         return
@@ -766,11 +766,11 @@ function SaveManager:LoadAutoloadConfig()
 
     local SuccessLoad, LoadErrorMessage = SaveManager:Load(ConfigName)
     if not SuccessLoad then
-        SaveManager.Library:Notify(string.format("Failed to load autoload config: %s", LoadErrorMessage))
+        SaveManager.Library:Notify(string.format("Couldn't load your start profile: %s", LoadErrorMessage))
         return
     end
 
-    SaveManager.Library:Notify(string.format("Successfully loaded autoload config %q", ConfigName))
+    SaveManager.Library:Notify(string.format("Loaded profile %q", ConfigName))
 end
 
 function SaveManager:DeleteAutoLoadConfig(): (boolean, string?)
@@ -841,11 +841,15 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
     assert(SaveManager.Library, "Library is not set, call SaveManager:SetLibrary(Library) first.")
     local ConfigurationBox = Tab:AddGroupbox({
         Side = "Right",
-        Name = "Configuration",
+        Name = "Profiles",
         IconName = IconName or "folder-cog",
     })
 
     local ConfigNameInput, ConfigList, ConfigJSONInput, AutoloadConfigLabel
+    local function Notify(Text: string, ...)
+        SaveManager.Library:Notify(string.format(Text, ...))
+    end
+
     local function RefreshList()
         ConfigList:SetValues(SaveManager:RefreshConfigList())
         ConfigList:SetValue(nil)
@@ -854,45 +858,64 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
     local function RefreshAutoloadConfigLabel()
         local AutoloadConfigName, _Success, _ErrorMessage = SaveManager:GetAutoloadConfig()
 
-        AutoloadConfigLabel:SetText(string.format("Current autoload config: %s", AutoloadConfigName))
+        AutoloadConfigLabel:SetText(string.format("Loads on start: %s", AutoloadConfigName))
         if ConfigList then RefreshList() end
     end
 
-    --// Create
+    local function GetSelectedProfile(): string?
+        local ConfigName = ConfigList.Value
+        if IsStringEmpty(ConfigName) then
+            Notify("Pick a profile first.")
+            return nil
+        end
+
+        return ConfigName
+    end
+
+    local function FormatProfile(Value: any)
+        if Value == SaveManager.AutoloadConfig then
+            return string.format("%s (on start)", Value)
+        end
+
+        return Value
+    end
+
+    --// New profile
     ConfigurationBox:AddInput("SaveManager_ConfigName", {
-        Text = "Config name"
+        Text = "Profile name",
+        Placeholder = "name...",
     })
 
-    ConfigurationBox:AddButton("Create config", function()
+    ConfigurationBox:AddButton("Save as new profile", function()
         local ConfigName = ConfigNameInput.Value
         if IsStringEmpty(ConfigName) then
-            SaveManager.Library:Notify("Configuration name cannot be empty.")
+            Notify("Type a name first.")
             return
         end
 
         if string.lower(ConfigName) == "autoload" then
-            SaveManager.Library:Notify("Invalid config name provided.")
+            Notify("That name is reserved, pick another.")
             return
         end
-        
+
         ShowDialog(
             function(): boolean
                 return DoesConfigExist(ConfigName)
             end,
 
             "SaveManager_CreateConfig",
-            "Config already exists",
-            string.format("A config named %q already exists. Overwriting will replace it with your current settings.", ConfigName),
+            "Name taken",
+            string.format("%q already exists. Replace it with your current settings?", ConfigName),
 
-            "Overwrite",
+            "Replace",
             function()
                 local Success, ErrorMessage = SaveManager:Save(ConfigName)
                 if not Success then
-                    SaveManager.Library:Notify(string.format("Failed to create config %q: %s", ConfigName, ErrorMessage))
+                    Notify("Couldn't save %q: %s", ConfigName, tostring(ErrorMessage))
                     return
                 end
 
-                SaveManager.Library:Notify(string.format("Successfully created config %q", ConfigName))
+                Notify("Saved %q", ConfigName)
                 RefreshList()
             end
         )
@@ -900,40 +923,25 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
 
     ConfigurationBox:AddDivider()
 
-    --// Manage
+    --// Saved profiles
     ConfigurationBox:AddDropdown("SaveManager_ConfigList", {
-        Text = "Config list",
+        Text = "Saved profiles",
 
         Values = SaveManager:RefreshConfigList(),
         AllowNull = true,
         Multi = false,
 
-        FormatDisplayValue = function(Value: any)
-            if Value == SaveManager.AutoloadConfig then
-                return string.format("%s (autoload)", Value)
-            end
-
-            return Value
-        end,
-        FormatListValue = function(Value: any)
-            if Value == SaveManager.AutoloadConfig then
-                return string.format("%s (autoload)", Value)
-            end
-
-            return Value
-        end
+        FormatDisplayValue = FormatProfile,
+        FormatListValue = FormatProfile,
     })
 
     ConfigurationBox:AddButton({
-        Text = "Load config",
+        Text = "Load",
         DoubleClick = false,
 
         Func = function()
-            local ConfigName = ConfigList.Value
-            if IsStringEmpty(ConfigName) then
-                SaveManager.Library:Notify("Please select a config first.")
-                return
-            end
+            local ConfigName = GetSelectedProfile()
+            if not ConfigName then return end
 
             ShowDialog(
                 function(): boolean
@@ -941,33 +949,29 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
                 end,
 
                 "SaveManager_LoadConfig",
-                "Load config",
-                string.format("Are you sure you want to load %q? Your current settings will be overwritten.", ConfigName),
+                "Load profile",
+                string.format("Switch to %q? Unsaved changes will be lost.", ConfigName),
 
                 "Load",
                 function()
                     local Success, ErrorMessage = SaveManager:Load(ConfigName)
                     if not Success then
-                        SaveManager.Library:Notify(string.format("Failed to load config %q: %s", ConfigName, ErrorMessage))
+                        Notify("Couldn't load %q: %s", ConfigName, tostring(ErrorMessage))
                         return
                     end
 
-                    SaveManager.Library:Notify(string.format("Successfully loaded config %q", ConfigName))
+                    Notify("Loaded %q", ConfigName)
                 end
             )
         end
-    })
-    
-    ConfigurationBox:AddButton({
-        Text = "Overwrite config",
+    }):AddButton({
+        Text = "Update",
         DoubleClick = false,
+        Tooltip = "Save your current settings into this profile",
 
         Func = function()
-            local ConfigName = ConfigList.Value
-            if IsStringEmpty(ConfigName) then
-                SaveManager.Library:Notify("Please select a config first.")
-                return
-            end
+            local ConfigName = GetSelectedProfile()
+            if not ConfigName then return end
 
             ShowDialog(
                 function(): boolean
@@ -975,33 +979,49 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
                 end,
 
                 "SaveManager_OverwriteConfig",
-                "Overwrite config",
-                string.format("Are you sure you want to overwrite %q with your current settings? This cannot be undone.", ConfigName),
+                "Update profile",
+                string.format("Replace %q with your current settings?", ConfigName),
 
-                "Overwrite",
+                "Update",
                 function()
                     local Success, ErrorMessage = SaveManager:Save(ConfigName)
                     if not Success then
-                        SaveManager.Library:Notify(string.format("Failed to overwrite config %q: %s", ConfigName, ErrorMessage))
+                        Notify("Couldn't update %q: %s", ConfigName, tostring(ErrorMessage))
                         return
                     end
 
-                    SaveManager.Library:Notify(string.format("Successfully overwrote config %q", ConfigName))
+                    Notify("Updated %q", ConfigName)
                 end
             )
         end
     })
 
     ConfigurationBox:AddButton({
-        Text = "Delete config",
+        Text = "Load on start",
         DoubleClick = false,
+        Tooltip = "Load this profile every time the script starts",
 
         Func = function()
-            local ConfigName = ConfigList.Value
-            if IsStringEmpty(ConfigName) then
-                SaveManager.Library:Notify("Please select a config first.")
+            local ConfigName = GetSelectedProfile()
+            if not ConfigName then return end
+
+            local Success, ErrorMessage = SaveManager:SaveAutoloadConfig(ConfigName)
+            if not Success then
+                Notify("Couldn't set %q: %s", ConfigName, tostring(ErrorMessage))
                 return
             end
+
+            Notify("%q will load on start", ConfigName)
+            RefreshAutoloadConfigLabel()
+        end
+    }):AddButton({
+        Text = "Delete",
+        DoubleClick = false,
+        Risky = true,
+
+        Func = function()
+            local ConfigName = GetSelectedProfile()
+            if not ConfigName then return end
 
             ShowDialog(
                 function(): boolean
@@ -1009,112 +1029,66 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
                 end,
 
                 "SaveManager_DeleteConfig",
-                "Delete config",
-                string.format("Are you sure you want to delete %q? This cannot be undone.", ConfigName),
-                
+                "Delete profile",
+                string.format("Delete %q for good?", ConfigName),
+
                 "Delete",
                 function()
                     local Success, ErrorMessage = SaveManager:Delete(ConfigName)
                     if not Success then
-                        SaveManager.Library:Notify(string.format("Failed to delete config %q: %s", ConfigName, ErrorMessage))
+                        Notify("Couldn't delete %q: %s", ConfigName, tostring(ErrorMessage))
                         return
                     end
 
-                    SaveManager.Library:Notify(string.format("Successfully deleted config %q", ConfigName))
+                    Notify("Deleted %q", ConfigName)
                     RefreshAutoloadConfigLabel()
                 end
             )
         end
     })
 
+    AutoloadConfigLabel = ConfigurationBox:AddLabel("Loads on start: ...", true)
+
     ConfigurationBox:AddButton({
-        Text = "Copy config to clipboard",
+        Text = "Don't load on start",
         DoubleClick = false,
 
         Func = function()
-            local ConfigName = ConfigList.Value
-            if IsStringEmpty(ConfigName) then
-                SaveManager.Library:Notify("Please select a config first.")
-                return
-            end
-
-            local Success, ErrorMessage = SaveManager:CopyToClipboard(ConfigName)
+            local Success, ErrorMessage = SaveManager:DeleteAutoLoadConfig()
             if not Success then
-                SaveManager.Library:Notify(string.format("Failed to copy config %q: %s", ConfigName, ErrorMessage))
+                Notify("Couldn't change it: %s", tostring(ErrorMessage))
                 return
             end
 
-            SaveManager.Library:Notify(string.format("Copied config %q to your clipboard", ConfigName))
-        end
-    })
-
-    ConfigurationBox:AddButton("Refresh list", RefreshList)
-
-    --// Autoload Config
-    ConfigurationBox:AddButton({
-        Text = "Set as autoload",
-        DoubleClick = false,
-
-        Func = function()
-            local ConfigName = ConfigList.Value
-            if IsStringEmpty(ConfigName) then
-                SaveManager.Library:Notify("Please select a config first.")
-                return
-            end
-
-            local Success, ErrorMessage = SaveManager:SaveAutoloadConfig(ConfigName)
-            if not Success then
-                SaveManager.Library:Notify(string.format("Failed to set autoload config %q: %s", ConfigName, ErrorMessage))
-                return
-            end
-
-            SaveManager.Library:Notify(string.format("Successfully set autoload config to %q", ConfigName))
+            Notify("No profile will load on start.")
             RefreshAutoloadConfigLabel()
         end
-    })
-
-    ConfigurationBox:AddButton({
-        Text = "Reset autoload",
-        DoubleClick = false,
-
-        Func = function()
-            ShowDialog(
-                function(): boolean
-                    return true --// Always show
-                end,
-
-                "SaveManager_ResetAutoload",
-                "Reset autoload config",
-                "Are you sure you want to clear the autoload config? No config will be loaded automatically on next launch.",
-                
-                "Reset",
-                function()
-                    local Success, ErrorMessage = SaveManager:DeleteAutoLoadConfig()
-                    if not Success then
-                        SaveManager.Library:Notify(string.format("Failed to reset autoload config: %s", ErrorMessage))
-                        return
-                    end
-
-                    SaveManager.Library:Notify("Successfully reset autoload config.")
-                    RefreshAutoloadConfigLabel()
-                end
-            )
-        end
-    })
-
-    AutoloadConfigLabel = ConfigurationBox:AddLabel("Current autoload config: ...", true);
+    }):AddButton("Refresh", RefreshList)
 
     ConfigurationBox:AddDivider()
 
-    --// Import & Export
+    --// Share
     ConfigurationBox:AddInput("SaveManager_JSON", {
-        Text = "Config JSON"
+        Text = "Share code",
+        Placeholder = "paste a code...",
     })
 
-    ConfigurationBox:AddButton("Import config", function()
+    ConfigurationBox:AddButton("Copy my code", function()
+        local EncodedData, Success, ErrorMessage = SaveManager:SaveJSON()
+        if not Success then
+            Notify("%s", tostring(ErrorMessage))
+            return
+        end
+
+        ConfigJSONInput:SetValue(EncodedData)
+        if setclipboard then
+            setclipboard(EncodedData)
+            Notify("Code copied")
+        end
+    end):AddButton("Use code", function()
         local ConfigJSON = ConfigJSONInput.Value
         if IsStringEmpty(ConfigJSON) then
-            SaveManager.Library:Notify("Configuration JSON cannot be empty")
+            Notify("Paste a code first.")
             return
         end
 
@@ -1124,39 +1098,25 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
             end,
 
             "SaveManager_ImportConfig",
-            "Import config",
-            "Are you sure you want to import this configuration? Your current settings will be overwritten.",
+            "Use share code",
+            "Apply these settings? Unsaved changes will be lost.",
 
-            "Import",
+            "Apply",
             function()
                 local Success, ErrorMessage = SaveManager:LoadJSON(ConfigJSON)
                 if not Success then
-                    SaveManager.Library:Notify(string.format("Failed to import config: %s", ErrorMessage))
+                    Notify("That code didn't work: %s", tostring(ErrorMessage))
                     return
                 end
 
-                SaveManager.Library:Notify("Successfully imported config")
+                Notify("Settings applied")
             end
         )
     end)
 
-    ConfigurationBox:AddButton("Export current config", function()
-        local EncodedData, Success, ErrorMessage = SaveManager:SaveJSON()
-        if not Success  then
-            SaveManager.Library:Notify(ErrorMessage)
-            return
-        end
-
-        ConfigJSONInput:SetValue(EncodedData)
-        if setclipboard then
-            setclipboard(EncodedData)
-            SaveManager.Library:Notify("Copied config to your clipboard")
-        end
-    end)
-
     --// Set variables
     ConfigNameInput, ConfigList, ConfigJSONInput =
-        SaveManager.Library.Options.SaveManager_ConfigName, 
+        SaveManager.Library.Options.SaveManager_ConfigName,
         SaveManager.Library.Options.SaveManager_ConfigList,
         SaveManager.Library.Options.SaveManager_JSON;
 
