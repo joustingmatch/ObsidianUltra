@@ -16849,6 +16849,11 @@ function Library:CreateWindow(WindowInfo)
             })
         )
 
+        --// On a phone the top bar can end up out of reach, so the footer drags the window too
+        if Library.IsMobile then
+            Library:MakeDraggable(MainFrame, BottomBar, false, true, WindowSnapConfig)
+        end
+
         --// Footer \\-
         --// The footer is a row of segments; each one is plain or copyable
         local FooterHolder = New("Frame", {
@@ -16964,9 +16969,28 @@ function Library:CreateWindow(WindowInfo)
             --// of parenting a button to it, since a child sized relative to an
             --// AutomaticSize parent makes that parent grow without bound.
             Label.InputBegan:Connect(function(Input)
-                if IsClickInput(Input) then
-                    Copy()
+                if not IsClickInput(Input) then
+                    return
                 end
+
+                --// The footer drags the window on mobile, so only a tap copies, not a drag
+                if Input.UserInputType ~= Enum.UserInputType.Touch then
+                    Copy()
+                    return
+                end
+
+                local StartPosition = Input.Position
+                local Ended
+                Ended = Input.Changed:Connect(function()
+                    if Input.UserInputState ~= Enum.UserInputState.End then
+                        return
+                    end
+
+                    Ended:Disconnect()
+                    if (Input.Position - StartPosition).Magnitude < 10 then
+                        Copy()
+                    end
+                end)
             end)
 
             table.insert(FooterSegments, CopyButton)
