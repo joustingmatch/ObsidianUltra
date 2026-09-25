@@ -306,134 +306,6 @@ local function IsValidFolderPath(Name: string): boolean
     )
 end
 
---// Share codes \\--
---// Raw config JSON runs to tens of KB, and mobile clipboards and text boxes cut it
---// short. Share codes are LZW packed into URL-safe base64 instead, a fraction the size.
-local SHARE_PREFIX = "OU1:"
-local SHARE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-
-local ShareChars, ShareValues = {}, {}
-for Index = 1, #SHARE_ALPHABET do
-    local Char = SHARE_ALPHABET:sub(Index, Index)
-    ShareChars[Index - 1] = Char
-    ShareValues[Char] = Index - 1
-end
-
---// Code width follows only from the code's position, so both sides agree without
---// tracking each other's dictionary: the i-th code can be at most 256 + i - 1.
-local function CodeWidth(Position: number): number
-    local Size, Width = 256 + Position, 0
-    while Size > 0 do
-        Size //= 2
-        Width += 1
-    end
-
-    return Width
-end
-
-local function EncodeShareCode(Data: string): string
-    local Dictionary, NextCode = {}, 256
-    for Byte = 0, 255 do
-        Dictionary[string.char(Byte)] = Byte
-    end
-
-    local Output = {}
-    local Accumulator, Bits, Position = 0, 0, 0
-
-    local function Emit(Code: number)
-        local Width = CodeWidth(Position)
-        Position += 1
-
-        Accumulator = Accumulator * 2 ^ Width + Code
-        Bits += Width
-
-        while Bits >= 6 do
-            Bits -= 6
-            local Divisor = 2 ^ Bits
-            table.insert(Output, ShareChars[math.floor(Accumulator / Divisor) % 64])
-            Accumulator %= Divisor
-        end
-    end
-
-    local Current = ""
-    for Index = 1, #Data do
-        local Char = Data:sub(Index, Index)
-        local Joined = Current .. Char
-
-        if Dictionary[Joined] then
-            Current = Joined
-        else
-            Emit(Dictionary[Current])
-            Dictionary[Joined] = NextCode
-            NextCode += 1
-            Current = Char
-        end
-    end
-
-    if Current ~= "" then
-        Emit(Dictionary[Current])
-    end
-
-    if Bits > 0 then
-        table.insert(Output, ShareChars[(Accumulator * 2 ^ (6 - Bits)) % 64])
-    end
-
-    return SHARE_PREFIX .. table.concat(Output)
-end
-
-local function DecodeShareCode(Code: string): string?
-    local Body = Code:sub(#SHARE_PREFIX + 1):gsub("%s", "")
-
-    local Dictionary, NextCode = {}, 256
-    for Byte = 0, 255 do
-        Dictionary[Byte] = string.char(Byte)
-    end
-
-    local Output = {}
-    local Accumulator, Bits, Position = 0, 0, 0
-    local Previous = nil
-
-    for Index = 1, #Body do
-        local Value = ShareValues[Body:sub(Index, Index)]
-        if Value == nil then
-            return nil
-        end
-
-        Accumulator = Accumulator * 64 + Value
-        Bits += 6
-
-        local Width = CodeWidth(Position)
-        while Bits >= Width do
-            Bits -= Width
-            local Divisor = 2 ^ Bits
-            local Code = math.floor(Accumulator / Divisor)
-            Accumulator %= Divisor
-            Position += 1
-
-            local Entry = Dictionary[Code]
-            if Entry == nil then
-                --// The one code a decoder can meet before defining it: previous + its own first byte
-                if Code ~= NextCode or Previous == nil then
-                    return nil
-                end
-
-                Entry = Previous .. Previous:sub(1, 1)
-            end
-
-            table.insert(Output, Entry)
-            if Previous ~= nil then
-                Dictionary[NextCode] = Previous .. Entry:sub(1, 1)
-                NextCode += 1
-            end
-
-            Previous = Entry
-            Width = CodeWidth(Position)
-        end
-    end
-
-    return table.concat(Output)
-end
-
 --// Folder helper \\--
 local function SplitPath(Path: string): {string}
     local Result = {}
@@ -690,7 +562,7 @@ function SaveManager:SaveJSON(ConfigName)
 end
 
 --// Settings only: window, keybind menu and groupbox layout are personal to the
---// sharer's screen, and dropping them keeps the code short enough for mobile.
+--// sharer's screen, so they stay out of shared codes.
 function SaveManager:ExportShareCode(): (string, boolean, string?)
     local EncodedData, SuccessEncode, ErrorMessage = SaveManager:SaveJSON()
     if not SuccessEncode then
@@ -709,7 +581,7 @@ function SaveManager:ExportShareCode(): (string, boolean, string?)
         return "", false, "Failed to encode data"
     end
 
-    return EncodeShareCode(Share), true
+    return Share, true
 end
 
 function SaveManager:Save(ConfigName: string): (boolean, string?)
@@ -748,14 +620,6 @@ function SaveManager:LoadJSON(Content: string)
     end
 
     Content = Trim(Content)
-    if Content:sub(1, #SHARE_PREFIX) == SHARE_PREFIX then
-        local Decoded = DecodeShareCode(Content)
-        if not Decoded then
-            return false, "The code is incomplete or damaged"
-        end
-
-        Content = Decoded
-    end
 
     local SuccessDecode, Decoded = pcall(HttpService.JSONDecode, HttpService, Content)
     if not SuccessDecode or typeof(Decoded) ~= "table" or typeof(Decoded.objects) ~= "table" then
@@ -1219,7 +1083,7 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
 
     SaveManager:LoadManagerSettings()
 
-    local ConfigNameInput, ConfigList, ConfigJSONInput, AutoloadConfigLabel
+    local ConfigNameInput, ConfigList, ConfigJSONInput, ShareNameInput, AutoloadConfigLabel
     local function Notify(Text: string, ...)
         SaveManager.Library:Notify(string.format(Text, ...))
     end
@@ -1468,6 +1332,11 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
         Placeholder = "paste a code...",
     })
 
+    ConfigurationBox:AddInput("SaveManager_ShareName", {
+        Text = "Save code as",
+        Placeholder = "new config name...",
+    })
+
     ConfigurationBox:AddButton("Copy my code", function()
         local EncodedData, Success, ErrorMessage = SaveManager:ExportShareCode()
         if not Success then
@@ -1487,45 +1356,57 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
             return
         end
 
-        --// Keep the code's settings in the loaded config, or the picked one if none is loaded
-        local TargetConfig = SaveManager.LoadedConfig
+        --// A code always lands in its own config, never over the loaded one
+        local TargetConfig = Trim(ShareNameInput.Value or "")
         if IsStringEmpty(TargetConfig) then
-            TargetConfig = if IsStringEmpty(ConfigList.Value) then nil else ConfigList.Value
+            Notify("Name the new config first.")
+            return
         end
 
+        if string.lower(TargetConfig) == "autoload" or GetConfigPath(TargetConfig) == false then
+            Notify("That name can't be used, pick another.")
+            return
+        end
+
+        local Exists = DoesConfigExist(TargetConfig)
         ShowDialog(
             function(): boolean
                 return true --// Always show
             end,
 
             "SaveManager_ImportConfig",
-            "Use share code",
-            if TargetConfig
-                then string.format("Apply these settings and save them to %q? Unsaved changes will be lost.", TargetConfig)
-                else "Apply these settings? Unsaved changes will be lost.",
+            if Exists then "Name taken" else "Use share code",
+            if Exists
+                then string.format("%q already exists. Replace it with this code's settings?", TargetConfig)
+                else string.format("Apply these settings and save them as %q? Unsaved changes will be lost.", TargetConfig),
 
-            "Apply",
+            if Exists then "Replace" else "Apply",
             function()
+                --// Detach first so autosave can't write the code into the previous config
+                local PreviousConfig = SaveManager.LoadedConfig
+                SaveManager.LoadedConfig = nil
+
                 local Success, ErrorMessage = SaveManager:LoadJSON(ConfigJSON)
                 if not Success then
+                    SaveManager.LoadedConfig = PreviousConfig
                     Notify("That code didn't work: %s", tostring(ErrorMessage))
                     return
                 end
 
                 ConfigJSONInput:SetValue("")
+                ShareNameInput:SetValue("")
 
-                if not TargetConfig then
-                    Notify("Settings applied. Create a config to keep them.")
-                    return
-                end
+                --// LoadJSON defers each element, so save once they have all applied
+                task.defer(function()
+                    local SuccessSave, SaveErrorMessage = SaveManager:Save(TargetConfig)
+                    if not SuccessSave then
+                        Notify("Settings applied, but couldn't save %q: %s", TargetConfig, tostring(SaveErrorMessage))
+                        return
+                    end
 
-                local SuccessSave, SaveErrorMessage = SaveManager:Save(TargetConfig)
-                if not SuccessSave then
-                    Notify("Settings applied, but couldn't save %q: %s", TargetConfig, tostring(SaveErrorMessage))
-                    return
-                end
-
-                Notify("Settings applied and saved to %q", TargetConfig)
+                    Notify("Saved the code as %q", TargetConfig)
+                    RefreshList()
+                end)
             end
         )
     end)
@@ -1571,15 +1452,16 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
     })
 
     --// Set variables
-    ConfigNameInput, ConfigList, ConfigJSONInput =
+    ConfigNameInput, ConfigList, ConfigJSONInput, ShareNameInput =
         SaveManager.Library.Options.SaveManager_ConfigName,
         SaveManager.Library.Options.SaveManager_ConfigList,
-        SaveManager.Library.Options.SaveManager_JSON;
+        SaveManager.Library.Options.SaveManager_JSON,
+        SaveManager.Library.Options.SaveManager_ShareName;
 
     --// Refresh
     RefreshAutoloadConfigLabel()
     SaveManager:SetIgnoreIndexes({
-        "SaveManager_ConfigList", "SaveManager_ConfigName", "SaveManager_JSON",
+        "SaveManager_ConfigList", "SaveManager_ConfigName", "SaveManager_JSON", "SaveManager_ShareName",
         "SaveManager_AutoloadMode", "SaveManager_Autosave"
     })
 
