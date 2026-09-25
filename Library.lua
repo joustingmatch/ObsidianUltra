@@ -2357,11 +2357,29 @@ function Library:MakeDraggable(
     local StartPos
     local FramePos
     local Dragging = false
+    local DragInput
     local Changed
     local InputBegan
     local InputChanged
 
     local SnapGuideX, SnapGuideY
+
+    --// A touch drag can end with the element hanging off screen, out of reach of
+    --// the finger that has to bring it back, so pull it inside the viewport
+    local function ClampToViewport()
+        local Camera = workspace.CurrentCamera
+        if not Camera then return end
+
+        local ViewportSize = Camera.ViewportSize
+        local Position, Size = UI.AbsolutePosition, UI.AbsoluteSize
+        local ShiftX = math.clamp(Position.X, 0, math.max(ViewportSize.X - Size.X, 0)) - Position.X
+        local ShiftY = math.clamp(Position.Y, 0, math.max(ViewportSize.Y - Size.Y, 0)) - Position.Y
+
+        if ShiftX ~= 0 or ShiftY ~= 0 then
+            local Current = UI.Position
+            UI.Position = UDim2.new(Current.X.Scale, Current.X.Offset + ShiftX, Current.Y.Scale, Current.Y.Offset + ShiftY)
+        end
+    end
 
     local function GetSnapGuides()
         if not SnapGuideX then
@@ -2410,6 +2428,7 @@ function Library:MakeDraggable(
         StartPos = Input.Position
         FramePos = UI.Position
         Dragging = true
+        DragInput = Input
 
         Changed = Input.Changed:Connect(function()
             if Input.UserInputState ~= Enum.UserInputState.End then
@@ -2418,6 +2437,10 @@ function Library:MakeDraggable(
 
             Dragging = false
             HideSnapGuides()
+
+            if Input.UserInputType == Enum.UserInputType.Touch and not IsMainWindow then
+                ClampToViewport()
+            end
 
             if Changed and Changed.Connected then
                 Changed:Disconnect()
@@ -2443,7 +2466,13 @@ function Library:MakeDraggable(
             return
         end
 
-        if Dragging and IsHoverInput(Input) then
+        --// Each finger is its own InputObject: follow only the one that started the
+        --// drag, or a thumb on the joystick drags the element along with it
+        local IsDragFinger = if DragInput and DragInput.UserInputType == Enum.UserInputType.Touch
+            then Input == DragInput
+            else Input.UserInputType == Enum.UserInputType.MouseMovement
+
+        if Dragging and IsDragFinger and IsHoverInput(Input) then
             local Delta = Input.Position - StartPos
             local NewX = FramePos.X.Offset + Delta.X
             local NewY = FramePos.Y.Offset + Delta.Y
@@ -4196,6 +4225,8 @@ function Library:AddWatermark(Segments: { any }?)
         Position = UDim2.fromOffset(6, 6),
         Size = UDim2.fromOffset(0, 0),
         ZIndex = 10,
+        --// Sinks touches so dragging it doesn't also turn the camera
+        Active = true,
         Parent = ScreenGui,
     })
 
@@ -4214,11 +4245,13 @@ function Library:AddWatermark(Segments: { any }?)
         Parent = Holder,
     })
 
+    --// A fingertip needs a taller target than a cursor does
+    local WatermarkPadding = Library.IsMobile and 8 or 3
     New("UIPadding", {
-        PaddingLeft = UDim.new(0, 3),
-        PaddingRight = UDim.new(0, 3),
-        PaddingTop = UDim.new(0, 3),
-        PaddingBottom = UDim.new(0, 3),
+        PaddingLeft = UDim.new(0, WatermarkPadding),
+        PaddingRight = UDim.new(0, WatermarkPadding),
+        PaddingTop = UDim.new(0, WatermarkPadding),
+        PaddingBottom = UDim.new(0, WatermarkPadding),
         Parent = Holder,
     })
 
@@ -4230,7 +4263,10 @@ function Library:AddWatermark(Segments: { any }?)
     )
 
     Library:AddOutline(Holder)
-    Library:MakeDraggable(Holder, Holder, true)
+    Library:MakeDraggable(Holder, Holder, true, false, {
+        --// Snapping to edges and centre lines makes precise placement easy by finger
+        Enabled = Library.IsMobile,
+    })
 
     Watermark.Holder = Holder
 
