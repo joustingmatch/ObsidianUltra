@@ -306,6 +306,134 @@ local function IsValidFolderPath(Name: string): boolean
     )
 end
 
+--// Share codes \\--
+--// Raw config JSON runs to tens of KB, and mobile clipboards and text boxes cut it
+--// short. Share codes are LZW packed into URL-safe base64 instead, a fraction the size.
+local SHARE_PREFIX = "OU1:"
+local SHARE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+
+local ShareChars, ShareValues = {}, {}
+for Index = 1, #SHARE_ALPHABET do
+    local Char = SHARE_ALPHABET:sub(Index, Index)
+    ShareChars[Index - 1] = Char
+    ShareValues[Char] = Index - 1
+end
+
+--// Code width follows only from the code's position, so both sides agree without
+--// tracking each other's dictionary: the i-th code can be at most 256 + i - 1.
+local function CodeWidth(Position: number): number
+    local Size, Width = 256 + Position, 0
+    while Size > 0 do
+        Size //= 2
+        Width += 1
+    end
+
+    return Width
+end
+
+local function EncodeShareCode(Data: string): string
+    local Dictionary, NextCode = {}, 256
+    for Byte = 0, 255 do
+        Dictionary[string.char(Byte)] = Byte
+    end
+
+    local Output = {}
+    local Accumulator, Bits, Position = 0, 0, 0
+
+    local function Emit(Code: number)
+        local Width = CodeWidth(Position)
+        Position += 1
+
+        Accumulator = Accumulator * 2 ^ Width + Code
+        Bits += Width
+
+        while Bits >= 6 do
+            Bits -= 6
+            local Divisor = 2 ^ Bits
+            table.insert(Output, ShareChars[math.floor(Accumulator / Divisor) % 64])
+            Accumulator %= Divisor
+        end
+    end
+
+    local Current = ""
+    for Index = 1, #Data do
+        local Char = Data:sub(Index, Index)
+        local Joined = Current .. Char
+
+        if Dictionary[Joined] then
+            Current = Joined
+        else
+            Emit(Dictionary[Current])
+            Dictionary[Joined] = NextCode
+            NextCode += 1
+            Current = Char
+        end
+    end
+
+    if Current ~= "" then
+        Emit(Dictionary[Current])
+    end
+
+    if Bits > 0 then
+        table.insert(Output, ShareChars[(Accumulator * 2 ^ (6 - Bits)) % 64])
+    end
+
+    return SHARE_PREFIX .. table.concat(Output)
+end
+
+local function DecodeShareCode(Code: string): string?
+    local Body = Code:sub(#SHARE_PREFIX + 1):gsub("%s", "")
+
+    local Dictionary, NextCode = {}, 256
+    for Byte = 0, 255 do
+        Dictionary[Byte] = string.char(Byte)
+    end
+
+    local Output = {}
+    local Accumulator, Bits, Position = 0, 0, 0
+    local Previous = nil
+
+    for Index = 1, #Body do
+        local Value = ShareValues[Body:sub(Index, Index)]
+        if Value == nil then
+            return nil
+        end
+
+        Accumulator = Accumulator * 64 + Value
+        Bits += 6
+
+        local Width = CodeWidth(Position)
+        while Bits >= Width do
+            Bits -= Width
+            local Divisor = 2 ^ Bits
+            local Code = math.floor(Accumulator / Divisor)
+            Accumulator %= Divisor
+            Position += 1
+
+            local Entry = Dictionary[Code]
+            if Entry == nil then
+                --// The one code a decoder can meet before defining it: previous + its own first byte
+                if Code ~= NextCode or Previous == nil then
+                    return nil
+                end
+
+                Entry = Previous .. Previous:sub(1, 1)
+            end
+
+            table.insert(Output, Entry)
+            if Previous ~= nil then
+                Dictionary[NextCode] = Previous .. Entry:sub(1, 1)
+                NextCode += 1
+            end
+
+            Previous = Entry
+            Width = CodeWidth(Position)
+        end
+    end
+
+    return table.concat(Output)
+end
+
 --// Folder helper \\--
 local function SplitPath(Path: string): {string}
     local Result = {}
@@ -561,6 +689,29 @@ function SaveManager:SaveJSON(ConfigName)
     return EncodedData, true
 end
 
+--// Settings only: window, keybind menu and groupbox layout are personal to the
+--// sharer's screen, and dropping them keeps the code short enough for mobile.
+function SaveManager:ExportShareCode(): (string, boolean, string?)
+    local EncodedData, SuccessEncode, ErrorMessage = SaveManager:SaveJSON()
+    if not SuccessEncode then
+        return "", false, ErrorMessage
+    end
+
+    local Data = HttpService:JSONDecode(EncodedData)
+    local Objects = {}
+    for _, Object in Data.objects do
+        if Object.type == "Groupbox" or Object.type == "Tabbox" then continue end
+        table.insert(Objects, Object)
+    end
+
+    local SuccessShare, Share = pcall(HttpService.JSONEncode, HttpService, { objects = Objects })
+    if not SuccessShare then
+        return "", false, "Failed to encode data"
+    end
+
+    return EncodeShareCode(Share), true
+end
+
 function SaveManager:Save(ConfigName: string): (boolean, string?)
     if IsStringEmpty(ConfigName) then
         return false, "Invalid config name provided"
@@ -594,6 +745,16 @@ end
 function SaveManager:LoadJSON(Content: string)
     if IsStringEmpty(Content) then
         return false, "No JSON provided"
+    end
+
+    Content = Trim(Content)
+    if Content:sub(1, #SHARE_PREFIX) == SHARE_PREFIX then
+        local Decoded = DecodeShareCode(Content)
+        if not Decoded then
+            return false, "The code is incomplete or damaged"
+        end
+
+        Content = Decoded
     end
 
     local SuccessDecode, Decoded = pcall(HttpService.JSONDecode, HttpService, Content)
@@ -1230,7 +1391,7 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
     })
 
     ConfigurationBox:AddButton("Copy my code", function()
-        local EncodedData, Success, ErrorMessage = SaveManager:SaveJSON()
+        local EncodedData, Success, ErrorMessage = SaveManager:ExportShareCode()
         if not Success then
             Notify("%s", tostring(ErrorMessage))
             return
