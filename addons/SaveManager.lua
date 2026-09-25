@@ -1056,6 +1056,9 @@ function SaveManager:ResetAll(): (boolean, string?)
     end
 
     SaveManager:ResetToDefaults()
+    if SaveManager.Library.ResetLayout then
+        SaveManager.Library:ResetLayout()
+    end
 
     if Failed > 0 then
         return false, string.format("%d file(s) could not be deleted", Failed)
@@ -1522,7 +1525,7 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
 
                 "SaveManager_ResetAll",
                 "Reset all settings",
-                "Delete every profile and put every setting back to default? This cannot be undone.",
+                "Delete every profile and put every setting and UI position back to default? This cannot be undone.",
 
                 "Reset",
                 function()

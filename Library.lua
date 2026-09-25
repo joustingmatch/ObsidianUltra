@@ -287,6 +287,8 @@ local Library = {
 
     CantDragForced = false,
     DraggableElements = {},
+    --// Where each draggable first landed, for Library:ResetLayout
+    DefaultPositions = setmetatable({}, { __mode = "k" }),
 
     --// Pop Out \\--
     PopOutSnapDistance = 80,
@@ -2284,6 +2286,35 @@ end
 
 function PositionDraggable(UI: GuiObject, StartPos: UDim2?)
     UI.Position = GetNonOverlappingPosition(UI, StartPos)
+
+    if Library.DefaultPositions[UI] == nil then
+        Library.DefaultPositions[UI] = UI.Position
+    end
+end
+
+--// Puts the window, every floating element and every popped out box back where
+--// they started. Visibility and collapsed state are left as they are.
+function Library:ResetLayout()
+    local Window = Library.Window
+    if Window and Window.SetSizePosition and Library.DefaultWindowSize then
+        Window:SetSizePosition(Library.DefaultWindowSize, Library.DefaultWindowPosition)
+    end
+
+    for _, Tab in Library.Tabs do
+        for _, Boxes in { Tab.Groupboxes, Tab.Tabboxes } do
+            for _, Box in Boxes or {} do
+                if Box.PoppedOut and Box.SetPoppedOut then
+                    pcall(Box.SetPoppedOut, Box, false)
+                end
+            end
+        end
+    end
+
+    for UI, Position in Library.DefaultPositions do
+        if UI.Parent then
+            UI.Position = Position
+        end
+    end
 end
 
 --// Window Snapping \\--
@@ -16089,6 +16120,9 @@ function Library:CreateWindow(WindowInfo)
         if WindowInfo.Center then
             MainFrame.Position = UDim2.new(0.5, -MainFrame.Size.X.Offset / 2, 0.5, -MainFrame.Size.Y.Offset / 2)
         end
+
+        Library.DefaultWindowSize = MainFrame.Size
+        Library.DefaultWindowPosition = MainFrame.Position
 
         --// Top Bar \\-
         TopBar = New("Frame", {
