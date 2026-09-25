@@ -6,6 +6,7 @@ local clonefunction = (clonefunction or copyfunction or function(func)
 end)
 
 local HttpService: HttpService = cloneref(game:GetService("HttpService"))
+local Players: Players = cloneref(game:GetService("Players"))
 
 --// Fix is_____ functions for shitsploits, those functions should never error, only return a boolean. (why is this still a problem in the big 2026)
 local isfolder, isfile, listfiles = isfolder, isfile, listfiles
@@ -40,7 +41,12 @@ local SaveManager = {
     LoadingOrder = {},
     UseLoadingOrder = false,
 
-    AutoloadConfig = nil
+    AutoloadConfig = nil,
+    LoadedConfig = nil,
+
+    --// Kept in manager.txt next to the profiles
+    AutoloadPerAccount = false,
+    Autosave = false,
 }
 
 function SaveManager:SetLibrary(Library)
@@ -345,9 +351,24 @@ local function DoesConfigExist(ConfigName: string): boolean
     return if ConfigPath == false then false else isfile(ConfigPath)
 end
 
+--// Per account mode keys the file by UserId, so each account can load a different profile
 local function GetAutoloadPath(): false | string
     local CurrentSettingsPath = GetCurrentSettingsPath()
-    return if CurrentSettingsPath == false then false else string.format("%s/autoload.txt", CurrentSettingsPath)
+    if CurrentSettingsPath == false then
+        return false
+    end
+
+    local LocalPlayer = Players.LocalPlayer
+    if SaveManager.AutoloadPerAccount and LocalPlayer then
+        return string.format("%s/autoload_%d.txt", CurrentSettingsPath, LocalPlayer.UserId)
+    end
+
+    return string.format("%s/autoload.txt", CurrentSettingsPath)
+end
+
+local function GetManagerSettingsPath(): false | string
+    local CurrentSettingsPath = GetCurrentSettingsPath()
+    return if CurrentSettingsPath == false then false else string.format("%s/manager.txt", CurrentSettingsPath)
 end
 
 --// Indexes \\--
@@ -452,7 +473,7 @@ function SaveManager:RefreshConfigList()
 
     local FileNames = {}
     for _, FilePath in Files do
-        local RawFileName = FilePath:match("(.+)%..+$")
+        local RawFileName = FilePath:match("(.+)%.json$")
         if not RawFileName then continue end
 
         local Position = RawFileName:gsub("\\", "/"):find("/[^/]*$")
@@ -566,6 +587,7 @@ function SaveManager:Save(ConfigName: string): (boolean, string?)
         return false, "Failed to write config file: " .. tostring(ErrorMessage)
     end
 
+    SaveManager.LoadedConfig = ConfigName
     return true
 end
 
@@ -647,7 +669,12 @@ function SaveManager:Load(ConfigName: string): (boolean, string?)
         return false, "Failed to read config file"
     end
 
-    return SaveManager:LoadJSON(Content)
+    local Success, ErrorMessage = SaveManager:LoadJSON(Content)
+    if Success then
+        SaveManager.LoadedConfig = ConfigName
+    end
+
+    return Success, ErrorMessage
 end
 
 --// Reads a saved config off disk as-is, for copying it out of the menu. This is
@@ -699,12 +726,17 @@ function SaveManager:Delete(ConfigName: string): (boolean | string?)
         SaveManager:DeleteAutoLoadConfig()
     end
 
+    if ConfigName == SaveManager.LoadedConfig then
+        SaveManager.LoadedConfig = nil
+    end
+
     return true
 end
 
 --// Auto Load Config \\--
 function SaveManager:GetAutoloadConfig(): (string, boolean, string?)
     SaveManager:CheckFolderTree()
+    SaveManager.AutoloadConfig = nil
 
     local AutoloadPath = GetAutoloadPath()
     if AutoloadPath == false then
@@ -755,6 +787,8 @@ function SaveManager:SaveAutoloadConfig(ConfigName: string): (boolean, string?)
 end
 
 function SaveManager:LoadAutoloadConfig()
+    SaveManager:LoadManagerSettings()
+
     local ConfigName, Success, FetchErrorMessage = SaveManager:GetAutoloadConfig()
     if not Success or FetchErrorMessage then
         if FetchErrorMessage ~= "Autoload config is not set" then
@@ -792,6 +826,105 @@ function SaveManager:DeleteAutoLoadConfig(): (boolean, string?)
 
     SaveManager.AutoloadConfig = nil
     return true
+end
+
+--// Manager Settings \\--
+function SaveManager:LoadManagerSettings()
+    local SettingsPath = GetManagerSettingsPath()
+    if SettingsPath == false or not isfile(SettingsPath) then
+        return
+    end
+
+    local SuccessRead, Content = pcall(readfile, SettingsPath)
+    if not SuccessRead then return end
+
+    local SuccessDecode, Decoded = pcall(HttpService.JSONDecode, HttpService, Content)
+    if not SuccessDecode or typeof(Decoded) ~= "table" then return end
+
+    SaveManager.AutoloadPerAccount = Decoded.AutoloadPerAccount == true
+    SaveManager:SetAutosave(Decoded.Autosave == true)
+end
+
+function SaveManager:SaveManagerSettings(): (boolean, string?)
+    SaveManager:CheckFolderTree()
+
+    local SettingsPath = GetManagerSettingsPath()
+    if SettingsPath == false then
+        return false, "Invalid path provided"
+    end
+
+    local SuccessEncode, Encoded = pcall(HttpService.JSONEncode, HttpService, {
+        AutoloadPerAccount = SaveManager.AutoloadPerAccount,
+        Autosave = SaveManager.Autosave,
+    })
+    if not SuccessEncode then
+        return false, "Failed to encode settings"
+    end
+
+    local SuccessWrite, ErrorMessage = pcall(writefile, SettingsPath, Encoded)
+    if not SuccessWrite then
+        return false, tostring(ErrorMessage)
+    end
+
+    return true
+end
+
+function SaveManager:SetAutoloadPerAccount(Enabled: boolean)
+    SaveManager.AutoloadPerAccount = Enabled == true
+    SaveManager:SaveManagerSettings()
+end
+
+--// Autosave \\--
+--// No library-wide change signal exists, so poll: re-encode the settings and write
+--// the loaded profile only when they differ from the last snapshot.
+local AUTOSAVE_INTERVAL = 2
+local AutosaveRunning = false
+
+local function StripTimestamp(Data: string): string
+    return (Data:gsub('"timestamp":"[^"]*"', ""))
+end
+
+function SaveManager:SetAutosave(Enabled: boolean)
+    SaveManager.Autosave = Enabled == true
+    SaveManager:SaveManagerSettings()
+
+    if not SaveManager.Autosave or AutosaveRunning then
+        return
+    end
+
+    AutosaveRunning = true
+    task.spawn(function()
+        local LastConfig, LastData = nil, nil
+
+        while SaveManager.Autosave do
+            task.wait(AUTOSAVE_INTERVAL)
+
+            local Library = SaveManager.Library
+            if not Library or Library.Unloaded then break end
+
+            local ConfigName = SaveManager.LoadedConfig
+            if not ConfigName or not DoesConfigExist(ConfigName) then continue end
+
+            local EncodedData, SuccessEncode = SaveManager:SaveJSON(ConfigName)
+            if not SuccessEncode then continue end
+
+            local Comparable = StripTimestamp(EncodedData)
+            if ConfigName ~= LastConfig then
+                --// First pass on a profile only takes a snapshot, so loading never writes
+                LastConfig, LastData = ConfigName, Comparable
+                continue
+            end
+
+            if Comparable == LastData then continue end
+
+            local ConfigPath = GetConfigPath(ConfigName)
+            if ConfigPath and pcall(writefile, ConfigPath, EncodedData) then
+                LastData = Comparable
+            end
+        end
+
+        AutosaveRunning = false
+    end)
 end
 
 --// GUI \\--
@@ -844,6 +977,8 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
         Name = "Profiles",
         IconName = IconName or "folder-cog",
     })
+
+    SaveManager:LoadManagerSettings()
 
     local ConfigNameInput, ConfigList, ConfigJSONInput, AutoloadConfigLabel
     local function Notify(Text: string, ...)
@@ -1065,6 +1200,27 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
         end
     }):AddButton("Refresh", RefreshList)
 
+    ConfigurationBox:AddDropdown("SaveManager_AutoloadMode", {
+        Text = "Load on start for",
+        Values = { "All accounts", "This account only" },
+        Default = if SaveManager.AutoloadPerAccount then "This account only" else "All accounts",
+
+        Callback = function(Value)
+            SaveManager:SetAutoloadPerAccount(Value == "This account only")
+            if AutoloadConfigLabel then RefreshAutoloadConfigLabel() end
+        end
+    })
+
+    ConfigurationBox:AddToggle("SaveManager_Autosave", {
+        Text = "Save changes automatically",
+        Tooltip = "Keeps the loaded profile updated as you change settings",
+        Default = SaveManager.Autosave,
+
+        Callback = function(Value)
+            SaveManager:SetAutosave(Value)
+        end
+    })
+
     ConfigurationBox:AddDivider()
 
     --// Share
@@ -1122,7 +1278,10 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
 
     --// Refresh
     RefreshAutoloadConfigLabel()
-    SaveManager:SetIgnoreIndexes({ "SaveManager_ConfigList", "SaveManager_ConfigName", "SaveManager_JSON" })
+    SaveManager:SetIgnoreIndexes({
+        "SaveManager_ConfigList", "SaveManager_ConfigName", "SaveManager_JSON",
+        "SaveManager_AutoloadMode", "SaveManager_Autosave"
+    })
 
     return ConfigurationBox
 end
