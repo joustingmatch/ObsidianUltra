@@ -1487,6 +1487,12 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
             return
         end
 
+        --// Keep the code's settings in the loaded profile, or the picked one if none is loaded
+        local TargetProfile = SaveManager.LoadedConfig
+        if IsStringEmpty(TargetProfile) then
+            TargetProfile = if IsStringEmpty(ConfigList.Value) then nil else ConfigList.Value
+        end
+
         ShowDialog(
             function(): boolean
                 return true --// Always show
@@ -1494,7 +1500,9 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
 
             "SaveManager_ImportConfig",
             "Use share code",
-            "Apply these settings? Unsaved changes will be lost.",
+            if TargetProfile
+                then string.format("Apply these settings and save them to %q? Unsaved changes will be lost.", TargetProfile)
+                else "Apply these settings? Unsaved changes will be lost.",
 
             "Apply",
             function()
@@ -1504,7 +1512,20 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
                     return
                 end
 
-                Notify("Settings applied")
+                ConfigJSONInput:SetValue("")
+
+                if not TargetProfile then
+                    Notify("Settings applied. Create a profile to keep them.")
+                    return
+                end
+
+                local SuccessSave, SaveErrorMessage = SaveManager:Save(TargetProfile)
+                if not SuccessSave then
+                    Notify("Settings applied, but couldn't save %q: %s", TargetProfile, tostring(SaveErrorMessage))
+                    return
+                end
+
+                Notify("Settings applied and saved to %q", TargetProfile)
             end
         )
     end)
