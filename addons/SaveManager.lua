@@ -989,6 +989,81 @@ function SaveManager:DeleteAutoLoadConfig(): (boolean, string?)
     return true
 end
 
+--// Reset \\--
+local ElementResetters = {
+    Toggle = function(Toggle) Toggle:SetValue(Toggle.Default) end,
+    Slider = function(Slider) Slider:SetValue(Slider.Default) end,
+    Input = function(Input) Input:SetValue(Input.Default) end,
+    PriorityDropdown = function(Priority) Priority:SetValue(Priority.Default) end,
+
+    Dropdown = function(Dropdown)
+        local Default = Dropdown.Default or {}
+        Dropdown:SetValue(if Dropdown.Multi then Default else Default[1])
+    end,
+
+    ColorPicker = function(ColorPicker)
+        ColorPicker:SetValueRGB(ColorPicker.Default, ColorPicker.DefaultTransparency)
+    end,
+
+    KeyPicker = function(KeyPicker)
+        KeyPicker:SetValue({ KeyPicker.Default, KeyPicker.DefaultMode or KeyPicker.Mode, KeyPicker.DefaultModifiers })
+    end,
+}
+
+--// Puts every saved element back to the value it was created with. Ignored indexes
+--// (theme, the manager's own controls) are left alone, same as Save and Load do.
+function SaveManager:ResetToDefaults()
+    local Library = SaveManager.Library
+    local IgnoreIndexes = SaveManager.Ignore
+
+    for _, Elements in { Library.Toggles, Library.Options } do
+        for Index, Element in Elements do
+            if IgnoreIndexes[Index] then continue end
+
+            local Reset = ElementResetters[Element.Type]
+            if Reset and Element.Default ~= nil then
+                pcall(Reset, Element)
+            end
+        end
+    end
+end
+
+--// Deletes every profile plus the start-profile and manager files in the current
+--// settings folder, then resets all settings. Nothing outside that folder is touched.
+function SaveManager:ResetAll(): (boolean, string?)
+    SaveManager.Autosave = false
+    SaveManager.AutoloadPerAccount = false
+    SaveManager.AutoloadConfig = nil
+    SaveManager.LoadedConfig = nil
+
+    local SettingsPath = GetCurrentSettingsPath()
+    local Failed = 0
+
+    if SettingsPath ~= false then
+        local SuccessList, Files = pcall(listfiles, SettingsPath)
+        if SuccessList and typeof(Files) == "table" then
+            for _, FilePath in Files do
+                local FileName = FilePath:gsub("\\", "/"):match("[^/]+$") or ""
+                local IsOurs = FileName:match("%.json$")
+                    or FileName:match("^autoload.*%.txt$")
+                    or FileName == "manager.txt"
+
+                if IsOurs and not pcall(delfile, FilePath) then
+                    Failed += 1
+                end
+            end
+        end
+    end
+
+    SaveManager:ResetToDefaults()
+
+    if Failed > 0 then
+        return false, string.format("%d file(s) could not be deleted", Failed)
+    end
+
+    return true
+end
+
 --// Manager Settings \\--
 function SaveManager:LoadManagerSettings()
     local SettingsPath = GetManagerSettingsPath()
@@ -1430,6 +1505,46 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
             end
         )
     end)
+
+    ConfigurationBox:AddDivider()
+
+    --// Reset
+    ConfigurationBox:AddButton({
+        Text = "Reset all settings",
+        DoubleClick = false,
+        Risky = true,
+
+        Func = function()
+            ShowDialog(
+                function(): boolean
+                    return true --// Always show
+                end,
+
+                "SaveManager_ResetAll",
+                "Reset all settings",
+                "Delete every profile and put every setting back to default? This cannot be undone.",
+
+                "Reset",
+                function()
+                    local Success, ErrorMessage = SaveManager:ResetAll()
+
+                    local AutoloadMode = SaveManager.Library.Options.SaveManager_AutoloadMode
+                    local AutosaveToggle = SaveManager.Library.Toggles.SaveManager_Autosave
+                    if AutoloadMode then AutoloadMode:SetValue("All accounts") end
+                    if AutosaveToggle then AutosaveToggle:SetValue(false) end
+
+                    RefreshAutoloadConfigLabel()
+
+                    if not Success then
+                        Notify("Reset, but %s", tostring(ErrorMessage))
+                        return
+                    end
+
+                    Notify("Everything is back to default")
+                end
+            )
+        end
+    })
 
     --// Set variables
     ConfigNameInput, ConfigList, ConfigJSONInput =

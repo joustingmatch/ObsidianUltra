@@ -6225,6 +6225,7 @@ do
 
         KeyPicker.Default = KeyPicker.Value
         KeyPicker.DefaultModifiers = table.clone(KeyPicker.Modifiers or {})
+        KeyPicker.DefaultMode = KeyPicker.Mode
 
         function KeyPicker:Destroy()
             KeyPicker.Destroyed = true
@@ -7173,6 +7174,7 @@ do
         table.insert(ParentObj.Addons, ColorPicker)
 
         ColorPicker.Default = ColorPicker.Value
+        ColorPicker.DefaultTransparency = ColorPicker.Transparency
 
         function ColorPicker:Destroy()
             ColorPicker.Destroyed = true
