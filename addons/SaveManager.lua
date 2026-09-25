@@ -44,7 +44,7 @@ local SaveManager = {
     AutoloadConfig = nil,
     LoadedConfig = nil,
 
-    --// Kept in manager.txt next to the profiles
+    --// Kept in manager.txt next to the configs
     AutoloadPerAccount = false,
     Autosave = false,
 }
@@ -479,7 +479,7 @@ local function DoesConfigExist(ConfigName: string): boolean
     return if ConfigPath == false then false else isfile(ConfigPath)
 end
 
---// Per account mode keys the file by UserId, so each account can load a different profile
+--// Per account mode keys the file by UserId, so each account can load a different config
 local function GetAutoloadPath(): false | string
     local CurrentSettingsPath = GetCurrentSettingsPath()
     if CurrentSettingsPath == false then
@@ -953,7 +953,7 @@ function SaveManager:LoadAutoloadConfig()
     local ConfigName, Success, FetchErrorMessage = SaveManager:GetAutoloadConfig()
     if not Success or FetchErrorMessage then
         if FetchErrorMessage ~= "Autoload config is not set" then
-            SaveManager.Library:Notify(string.format("Couldn't load your start profile: %s", FetchErrorMessage))
+            SaveManager.Library:Notify(string.format("Couldn't load your start config: %s", FetchErrorMessage))
         end
 
         return
@@ -961,11 +961,11 @@ function SaveManager:LoadAutoloadConfig()
 
     local SuccessLoad, LoadErrorMessage = SaveManager:Load(ConfigName)
     if not SuccessLoad then
-        SaveManager.Library:Notify(string.format("Couldn't load your start profile: %s", LoadErrorMessage))
+        SaveManager.Library:Notify(string.format("Couldn't load your start config: %s", LoadErrorMessage))
         return
     end
 
-    SaveManager.Library:Notify(string.format("Loaded profile %q", ConfigName))
+    SaveManager.Library:Notify(string.format("Loaded config %q", ConfigName))
 end
 
 function SaveManager:DeleteAutoLoadConfig(): (boolean, string?)
@@ -1028,7 +1028,7 @@ function SaveManager:ResetToDefaults()
     end
 end
 
---// Deletes every profile plus the start-profile and manager files in the current
+--// Deletes every config plus the start-config and manager files in the current
 --// settings folder, then resets all settings. Nothing outside that folder is touched.
 function SaveManager:ResetAll(): (boolean, string?)
     SaveManager.Autosave = false
@@ -1115,7 +1115,7 @@ end
 
 --// Autosave \\--
 --// No library-wide change signal exists, so poll: re-encode the settings and write
---// the loaded profile only when they differ from the last snapshot.
+--// the loaded config only when they differ from the last snapshot.
 local AUTOSAVE_INTERVAL = 2
 local AutosaveRunning = false
 
@@ -1149,7 +1149,7 @@ function SaveManager:SetAutosave(Enabled: boolean)
 
             local Comparable = StripTimestamp(EncodedData)
             if ConfigName ~= LastConfig then
-                --// First pass on a profile only takes a snapshot, so loading never writes
+                --// First pass on a config only takes a snapshot, so loading never writes
                 LastConfig, LastData = ConfigName, Comparable
                 continue
             end
@@ -1213,7 +1213,7 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
     assert(SaveManager.Library, "Library is not set, call SaveManager:SetLibrary(Library) first.")
     local ConfigurationBox = Tab:AddGroupbox({
         Side = "Right",
-        Name = "Profiles",
+        Name = "Configs",
         IconName = IconName or "folder-cog",
     })
 
@@ -1236,17 +1236,17 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
         if ConfigList then RefreshList() end
     end
 
-    local function GetSelectedProfile(): string?
+    local function GetSelectedConfig(): string?
         local ConfigName = ConfigList.Value
         if IsStringEmpty(ConfigName) then
-            Notify("Pick a profile first.")
+            Notify("Pick a config first.")
             return nil
         end
 
         return ConfigName
     end
 
-    local function FormatProfile(Value: any)
+    local function FormatConfig(Value: any)
         if Value == SaveManager.AutoloadConfig then
             return string.format("%s (on start)", Value)
         end
@@ -1254,13 +1254,13 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
         return Value
     end
 
-    --// New profile
+    --// New config
     ConfigurationBox:AddInput("SaveManager_ConfigName", {
-        Text = "Profile name",
+        Text = "Config name",
         Placeholder = "name...",
     })
 
-    ConfigurationBox:AddButton("Save as new profile", function()
+    ConfigurationBox:AddButton("Save as new config", function()
         local ConfigName = ConfigNameInput.Value
         if IsStringEmpty(ConfigName) then
             Notify("Type a name first.")
@@ -1297,16 +1297,16 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
 
     ConfigurationBox:AddDivider()
 
-    --// Saved profiles
+    --// Saved configs
     ConfigurationBox:AddDropdown("SaveManager_ConfigList", {
-        Text = "Saved profiles",
+        Text = "Saved configs",
 
         Values = SaveManager:RefreshConfigList(),
         AllowNull = true,
         Multi = false,
 
-        FormatDisplayValue = FormatProfile,
-        FormatListValue = FormatProfile,
+        FormatDisplayValue = FormatConfig,
+        FormatListValue = FormatConfig,
     })
 
     ConfigurationBox:AddButton({
@@ -1314,7 +1314,7 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
         DoubleClick = false,
 
         Func = function()
-            local ConfigName = GetSelectedProfile()
+            local ConfigName = GetSelectedConfig()
             if not ConfigName then return end
 
             ShowDialog(
@@ -1323,7 +1323,7 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
                 end,
 
                 "SaveManager_LoadConfig",
-                "Load profile",
+                "Load config",
                 string.format("Switch to %q? Unsaved changes will be lost.", ConfigName),
 
                 "Load",
@@ -1341,10 +1341,10 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
     }):AddButton({
         Text = "Update",
         DoubleClick = false,
-        Tooltip = "Save your current settings into this profile",
+        Tooltip = "Save your current settings into this config",
 
         Func = function()
-            local ConfigName = GetSelectedProfile()
+            local ConfigName = GetSelectedConfig()
             if not ConfigName then return end
 
             ShowDialog(
@@ -1353,7 +1353,7 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
                 end,
 
                 "SaveManager_OverwriteConfig",
-                "Update profile",
+                "Update config",
                 string.format("Replace %q with your current settings?", ConfigName),
 
                 "Update",
@@ -1373,10 +1373,10 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
     ConfigurationBox:AddButton({
         Text = "Load on start",
         DoubleClick = false,
-        Tooltip = "Load this profile every time the script starts",
+        Tooltip = "Load this config every time the script starts",
 
         Func = function()
-            local ConfigName = GetSelectedProfile()
+            local ConfigName = GetSelectedConfig()
             if not ConfigName then return end
 
             local Success, ErrorMessage = SaveManager:SaveAutoloadConfig(ConfigName)
@@ -1394,7 +1394,7 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
         Risky = true,
 
         Func = function()
-            local ConfigName = GetSelectedProfile()
+            local ConfigName = GetSelectedConfig()
             if not ConfigName then return end
 
             ShowDialog(
@@ -1403,7 +1403,7 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
                 end,
 
                 "SaveManager_DeleteConfig",
-                "Delete profile",
+                "Delete config",
                 string.format("Delete %q for good?", ConfigName),
 
                 "Delete",
@@ -1434,7 +1434,7 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
                 return
             end
 
-            Notify("No profile will load on start.")
+            Notify("No config will load on start.")
             RefreshAutoloadConfigLabel()
         end
     }):AddButton("Refresh", RefreshList)
@@ -1452,7 +1452,7 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
 
     ConfigurationBox:AddToggle("SaveManager_Autosave", {
         Text = "Save changes automatically",
-        Tooltip = "Keeps the loaded profile updated as you change settings",
+        Tooltip = "Keeps the loaded config updated as you change settings",
         Default = SaveManager.Autosave,
 
         Callback = function(Value)
@@ -1487,10 +1487,10 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
             return
         end
 
-        --// Keep the code's settings in the loaded profile, or the picked one if none is loaded
-        local TargetProfile = SaveManager.LoadedConfig
-        if IsStringEmpty(TargetProfile) then
-            TargetProfile = if IsStringEmpty(ConfigList.Value) then nil else ConfigList.Value
+        --// Keep the code's settings in the loaded config, or the picked one if none is loaded
+        local TargetConfig = SaveManager.LoadedConfig
+        if IsStringEmpty(TargetConfig) then
+            TargetConfig = if IsStringEmpty(ConfigList.Value) then nil else ConfigList.Value
         end
 
         ShowDialog(
@@ -1500,8 +1500,8 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
 
             "SaveManager_ImportConfig",
             "Use share code",
-            if TargetProfile
-                then string.format("Apply these settings and save them to %q? Unsaved changes will be lost.", TargetProfile)
+            if TargetConfig
+                then string.format("Apply these settings and save them to %q? Unsaved changes will be lost.", TargetConfig)
                 else "Apply these settings? Unsaved changes will be lost.",
 
             "Apply",
@@ -1514,18 +1514,18 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
 
                 ConfigJSONInput:SetValue("")
 
-                if not TargetProfile then
-                    Notify("Settings applied. Create a profile to keep them.")
+                if not TargetConfig then
+                    Notify("Settings applied. Create a config to keep them.")
                     return
                 end
 
-                local SuccessSave, SaveErrorMessage = SaveManager:Save(TargetProfile)
+                local SuccessSave, SaveErrorMessage = SaveManager:Save(TargetConfig)
                 if not SuccessSave then
-                    Notify("Settings applied, but couldn't save %q: %s", TargetProfile, tostring(SaveErrorMessage))
+                    Notify("Settings applied, but couldn't save %q: %s", TargetConfig, tostring(SaveErrorMessage))
                     return
                 end
 
-                Notify("Settings applied and saved to %q", TargetProfile)
+                Notify("Settings applied and saved to %q", TargetConfig)
             end
         )
     end)
@@ -1546,7 +1546,7 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
 
                 "SaveManager_ResetAll",
                 "Reset all settings",
-                "Delete every profile and put every setting and UI position back to default? This cannot be undone.",
+                "Delete every config and put every setting and UI position back to default? This cannot be undone.",
 
                 "Reset",
                 function()
