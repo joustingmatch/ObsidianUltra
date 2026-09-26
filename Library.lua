@@ -8222,19 +8222,21 @@ do
                 Parent = Status,
             })
 
-            table.insert(
-                Library.PillCorners,
-                New("UICorner", {
-                    CornerRadius = Library.CornerRadius > 0 and UDim.new(1, 0) or UDim.new(0, 0),
-                    Parent = Status,
-                })
-            )
+            --// The row keeps its own corner so ClearRows can take it back out of
+            --// PillCorners; a list rebuilt on every reorder would otherwise pin
+            --// every destroyed corner there for the life of the library
+            local Corner = New("UICorner", {
+                CornerRadius = Library.CornerRadius > 0 and UDim.new(1, 0) or UDim.new(0, 0),
+                Parent = Status,
+            })
+            table.insert(Library.PillCorners, Corner)
 
             local Row = {
                 Item = Item,
                 Holder = RowHolder,
                 TextLabel = TextLabel,
                 Status = Status,
+                Corner = Corner,
                 Hovering = false,
             }
 
@@ -8280,10 +8282,31 @@ do
             end
             table.clear(StatusLabel.RowConnections)
 
+            if #StatusLabel.Rows == 0 then
+                return
+            end
+
+            local Owned = {}
             for _, Row in StatusLabel.Rows do
+                Owned[Row.Corner] = true
                 Row.Holder:Destroy()
             end
             table.clear(StatusLabel.Rows)
+
+            --// One compacting pass rather than a find-and-remove per row, so a
+            --// rebuild stays linear in the size of PillCorners
+            local PillCorners = Library.PillCorners
+            local Write = 0
+            for Read = 1, #PillCorners do
+                local UICorner = PillCorners[Read]
+                if not Owned[UICorner] then
+                    Write += 1
+                    PillCorners[Write] = UICorner
+                end
+            end
+            for Index = #PillCorners, Write + 1, -1 do
+                PillCorners[Index] = nil
+            end
         end
 
         function StatusLabel:Display()
@@ -23108,6 +23131,7 @@ function Library:Unload()
 
     table.clear(Library.Corners)
     table.clear(Library.SpecificCorners)
+    table.clear(Library.PillCorners)
     table.clear(Library.ContextMenus)
 
     table.clear(Library.Notifications)
