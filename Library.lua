@@ -3114,14 +3114,15 @@ local SUBTAB_SLIDE_TWEEN = TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.Easi
 --// Fraction of the chip the underline spans, and its gap above the chip's bottom edge
 local SUBTAB_UNDERLINE_WIDTH = 0.66
 local SUBTAB_UNDERLINE_GAP = 3
---// The tab row is a segmented control: a recessed rail inset inside the 34px
---// row, with a raised accent chip sliding between the segments
+--// The tab row sits flush in the 34px header; the open tab is a soft pill in
+--// the element colour that slides between tabs, with a short accent marker
+--// under its label
 local TABBOX_RAIL_INSET = 4
 local TABBOX_RAIL_HEIGHT = 26
-local TABBOX_CHIP_INSET = 2
---// The chip gradient multiplies over the accent, giving it a lit top edge
-local TABBOX_CHIP_GRADIENT_FROM = Color3.fromRGB(255, 255, 255)
-local TABBOX_CHIP_GRADIENT_TO = Color3.fromRGB(206, 206, 206)
+local TABBOX_CHIP_INSET = 0
+--// Fraction of the pill the accent marker spans, and its thickness
+local TABBOX_MARKER_WIDTH = 0.4
+local TABBOX_MARKER_HEIGHT = 2
 --// Idle, hovered and open text/icon fade for a tab in the row
 local TABBOX_TAB_IDLE_FADE = 0.55
 local TABBOX_TAB_HOVER_FADE = 0.25
@@ -18659,36 +18660,22 @@ function Library:CreateWindow(WindowInfo)
                     Library:AddOutline(TabboxHolder)
                 end
 
-                --// The rail the segments sit in, sunk below the card surface
+                --// An invisible track the pill is positioned against; the header
+                --// itself stays flat so the row reads as part of the card
                 TabboxRail = New("Frame", {
                     AnchorPoint = Vector2.new(0, 0.5),
-                    --// Recessed against a groupbox surface, faintly raised when the
-                    --// tabbox is its own card and already sits on the darker colour
-                    BackgroundColor3 = function()
-                        return Library:GetBetterColor(Library.Scheme.BackgroundColor, InGroupbox and 0 or 6)
-                    end,
+                    BackgroundTransparency = 1,
                     Position = UDim2.new(0, TABBOX_RAIL_INSET, 0, 17),
                     Size = UDim2.new(1, -TABBOX_RAIL_INSET * 2, 0, TABBOX_RAIL_HEIGHT),
                     ZIndex = 1,
                     Parent = TabboxHolder,
                 })
-                table.insert(
-                    Library.Corners,
-                    New("UICorner", {
-                        CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
-                        Parent = TabboxRail,
-                    })
-                )
-                New("UIStroke", {
-                    Color = "OutlineColor",
-                    Transparency = 0.4,
-                    Parent = TabboxRail,
-                })
 
-                --// The raised chip that slides between segments, carrying the accent
+                --// The soft pill that slides onto the open tab, in the same colour
+                --// and outline as the other elements
                 TabboxChip = New("Frame", {
                     AnchorPoint = Vector2.new(0, 0.5),
-                    BackgroundColor3 = "AccentColor",
+                    BackgroundColor3 = "MainColor",
                     Position = UDim2.new(0, TABBOX_CHIP_INSET, 0.5, 0),
                     Size = UDim2.new(0, 0, 0, TABBOX_RAIL_HEIGHT - TABBOX_CHIP_INSET * 2),
                     Visible = false,
@@ -18701,11 +18688,23 @@ function Library:CreateWindow(WindowInfo)
                         Parent = TabboxChip,
                     })
                 )
-                --// A lit top edge, so the chip reads as raised out of the rail
-                New("UIGradient", {
-                    Color = ColorSequence.new(TABBOX_CHIP_GRADIENT_FROM, TABBOX_CHIP_GRADIENT_TO),
-                    Rotation = 90,
+                New("UIStroke", {
+                    Color = "OutlineColor",
                     Parent = TabboxChip,
+                })
+
+                --// Short accent marker along the pill's bottom edge; it scales with
+                --// the pill, so it follows the slide for free
+                local TabboxMarker = New("Frame", {
+                    AnchorPoint = Vector2.new(0.5, 1),
+                    BackgroundColor3 = "AccentColor",
+                    Position = UDim2.fromScale(0.5, 1),
+                    Size = UDim2.new(TABBOX_MARKER_WIDTH, 0, 0, TABBOX_MARKER_HEIGHT),
+                    Parent = TabboxChip,
+                })
+                New("UICorner", {
+                    CornerRadius = UDim.new(1, 0),
+                    Parent = TabboxMarker,
                 })
 
                 TabboxButtons = New("Frame", {
@@ -18916,19 +18915,14 @@ function Library:CreateWindow(WindowInfo)
                     DependencyBoxes = {},
                 }
 
-                --// An open tab sits on the accent chip, so its label and glyph flip
-                --// to whichever of black or white the accent can carry; everything
-                --// else fades against the rail instead
+                --// An open tab sits on the pill at full strength; everything else
+                --// fades back and fills in under the pointer
                 local Hovered = false
                 local function SetState(Active: boolean, Animate: boolean)
                     local Fade = Active and 0
                         or (Hovered and TABBOX_TAB_HOVER_FADE or TABBOX_TAB_IDLE_FADE)
 
                     if ButtonLabel then
-                        local Color = Active and OnAccentColor() or Library.Scheme.FontColor
-                        ButtonLabel.TextColor3 = Color
-                        Library.Registry[ButtonLabel].TextColor3 = Active and OnAccentColor or "FontColor"
-
                         if Animate then
                             TweenService:Create(ButtonLabel, TABBOX_TAB_FADE_TWEEN, {
                                 TextTransparency = Fade,
@@ -18939,12 +18933,6 @@ function Library:CreateWindow(WindowInfo)
                     end
 
                     if ButtonIcon then
-                        local IconColor = Active and OnAccentColor()
-                            or (BoxIcon.Custom and Library.Scheme.WhiteColor or Library.Scheme.AccentColor)
-                        ButtonIcon.ImageColor3 = IconColor
-                        Library.Registry[ButtonIcon].ImageColor3 = Active and OnAccentColor
-                            or (BoxIcon.Custom and "WhiteColor" or "AccentColor")
-
                         if Animate then
                             TweenService:Create(ButtonIcon, TABBOX_TAB_FADE_TWEEN, {
                                 ImageTransparency = Fade,

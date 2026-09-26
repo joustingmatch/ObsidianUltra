@@ -86,13 +86,12 @@
   all. Programmatic value changes now glide the fill into place; dragging stays
   glued to the cursor, frame for frame. Compact sliders share the new height, and
   the label gap went 2 -> 3px.
-* A tabbox's tab strip is a segmented control. The row is a recessed rail inset 4px
-  inside the card, and the open tab is a raised accent chip that slides between the
-  segments, lit along its top edge by a white-to-grey gradient over the accent. The
-  open tab's label and glyph flip to black or white -- whichever the accent can
-  carry -- while the rest sit at 0.55 against the rail and climb to 0.25 under the
-  pointer. The old centred underline is gone; the chip marks the open tab now, and
-  the header divider still separates the strip from the content below.
+* A tabbox's tab strip is quieter. The recessed rail and the gradient accent chip
+  are gone; the row sits flush in the header and the open tab is a soft pill in the
+  element colour with the usual outline, sliding between tabs with a short accent
+  marker along its bottom edge. The open tab's label and glyph sit at full strength,
+  the rest at 0.55, climbing to 0.25 under the pointer. The header divider still
+  separates the strip from the content below.
 * Nine more pink themes: Cotton Candy, Neon Bubblegum, Rosewater, Strawberry Milk,
   Peony, Magenta Dusk, Pink Lemonade, Hot Pink Void and Orchid Haze -- from a muted
   rosewater through milk-and-strawberry mids to a hot pink on near-black.
