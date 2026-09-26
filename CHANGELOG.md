@@ -1,3 +1,19 @@
+## 25.09.2026
+
+```diff
+[additions]
++ Groupbox:AddStatGrid(Idx, Info) -- a grid of tiles, each a big value over a small
+  caption ("61" over "fps", "4 / 20" over "players"). Items are { Value, Text,
+  ValueColor, Tooltip }; Columns (3), TileHeight (44) and Padding (6) shape the grid,
+  which sizes itself from the tile count. SetValue(Key, Value, ValueColor?) rewrites
+  one tile in place, found by position, caption or item table; the element also has
+  SetItems, AddItem, UpdateItem, Clear, SetColumns and SetVisible, and is indexed
+  into Library.Labels.
++ Buttons option for Library:Notify({ ... }) -- a row of pill buttons under the text,
+  each { Text, Func, Close }. Func gets the notification; the notification closes after
+  the click unless Close = false, and Callback then sees the reason "button".
+```
+
 ## 24.09.2026 (2)
 
 ```diff

@@ -259,6 +259,24 @@ LeftGroupBox:AddStatusLabel("Timers", {
 -- Library.Labels.Timers:AddItem({ Text = "Domae", Time = os.time() + 300 })
 -- Library.Labels.Timers:SetMode("Absolute")
 
+-- Groupbox:AddStatGrid
+-- Arguments: Idx, Options
+-- A grid of tiles, each a big value over a small caption. Columns defaults to 3.
+-- Update one tile by position or caption with SetValue.
+LeftGroupBox:AddStatGrid("Stats", {
+	Columns = 3, -- Defaults to 3
+	Items = {
+		{ Value = 171, Text = "Level" },
+		{ Value = 0, Text = "Quests Done" },
+		{ Value = 5, Text = "Kills" },
+		{ Value = "236.3K", Text = "Wen" },
+		{ Value = game.PlaceVersion, Text = "Place Version" },
+	},
+})
+
+-- Library.Labels.Stats:SetValue("Kills", 6)
+-- Library.Labels.Stats:SetValue(1, 172, "AccentColor")
+
 -- Groupbox:AddDivider
 -- Arguments: None
 LeftGroupBox:AddDivider()

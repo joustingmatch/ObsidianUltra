@@ -8418,6 +8418,273 @@ do
         return StatusLabel
     end
 
+    --// A grid of small tiles, each a big value over a quiet caption: the shape of
+    --// a status readout ("7m 10s" over "session", "61" over "fps") where the number
+    --// is the thing being read and the caption only says what it is. Values change
+    --// far more often than the layout, so SetValue rewrites one tile in place.
+    function Funcs:AddStatGrid(Idx, Info)
+        if self.Destroyed then return nil end
+
+        if typeof(Idx) == "table" then
+            Info = Idx
+            Idx = Info.Idx
+        end
+
+        Info = Library:Validate(Info or {}, {
+            Items = {},                 --// { { Value, Text, ValueColor, Tooltip } }
+            Columns = 3,
+            TileHeight = 44,
+            Padding = 6,
+            Tooltip = nil,
+            Visible = true,
+        })
+
+        local Groupbox = self
+        local Container = Groupbox.Container
+
+        local StatGrid = {
+            Connections = {},
+            Tiles = {},
+            Destroyed = false,
+
+            Items = Info.Items,
+            Columns = math.max(math.floor(Info.Columns), 1),
+            TileHeight = Info.TileHeight,
+            Padding = Info.Padding,
+            Tooltip = Info.Tooltip,
+            Visible = Info.Visible,
+
+            Type = "StatGrid",
+            Parent = Groupbox,
+        }
+
+        local Holder = New("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, Info.TileHeight),
+            Visible = StatGrid.Visible,
+            Parent = Container,
+        })
+
+        local Grid = New("UIGridLayout", {
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Parent = Holder,
+        })
+
+        --// The height comes from the tile count rather than being read back from
+        --// the layout, so the groupbox is the right size on the first frame
+        local function Resize()
+            local Columns = StatGrid.Columns
+            local Rows = math.max(math.ceil(#StatGrid.Tiles / Columns), 1)
+
+            Grid.CellSize = UDim2.new(1 / Columns, -StatGrid.Padding * (Columns - 1) / Columns, 0, StatGrid.TileHeight)
+            Grid.CellPadding = UDim2.fromOffset(StatGrid.Padding, StatGrid.Padding)
+            Holder.Size = UDim2.new(1, 0, 0, Rows * StatGrid.TileHeight + (Rows - 1) * StatGrid.Padding)
+
+            Groupbox:Resize()
+        end
+
+        local function RenderTile(Tile)
+            local Item = Tile.Item
+            local Color = Item.ValueColor
+
+            Tile.Value.Text = tostring(Item.Value or "")
+            Tile.Caption.Text = tostring(Item.Text or "")
+
+            if typeof(Color) == "Color3" then
+                SetSchemeProperty(Tile.Value, "TextColor3", Color)
+            else
+                SetSchemeProperty(
+                    Tile.Value,
+                    "TextColor3",
+                    typeof(Color) == "string" and Library.Scheme[Color] and Color or "FontColor"
+                )
+            end
+        end
+
+        local function CreateTile(Item, Order)
+            local Frame = New("Frame", {
+                BackgroundColor3 = "MainColor",
+                LayoutOrder = Order,
+                Parent = Holder,
+            })
+            table.insert(Library.Corners, New("UICorner", {
+                CornerRadius = UDim.new(0, Library.CornerRadius / 2),
+                Parent = Frame,
+            }))
+
+            New("UIPadding", {
+                PaddingLeft = UDim.new(0, 8),
+                PaddingRight = UDim.new(0, 8),
+                Parent = Frame,
+            })
+
+            local Value = New("TextLabel", {
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0, 0, 0.5, -15),
+                Size = UDim2.new(1, 0, 0, 18),
+                Text = "",
+                TextSize = 16,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = Frame,
+            })
+
+            local Caption = New("TextLabel", {
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0, 0, 0.5, 4),
+                Size = UDim2.new(1, 0, 0, 12),
+                Text = "",
+                TextSize = 12,
+                TextTransparency = 0.5,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = Frame,
+            })
+
+            local Tile = {
+                Item = Item,
+                Frame = Frame,
+                Value = Value,
+                Caption = Caption,
+            }
+
+            if typeof(Item.Tooltip) == "string" then
+                Library:AddTooltip(Item.Tooltip, nil, Frame)
+            end
+
+            RenderTile(Tile)
+            return Tile
+        end
+
+        local function ClearTiles()
+            for _, Tile in StatGrid.Tiles do
+                Tile.Frame:Destroy()
+            end
+            table.clear(StatGrid.Tiles)
+        end
+
+        --// A tile is found by its position, its item table or its caption,
+        --// whichever the caller finds easiest to hold on to
+        local function FindTile(Key)
+            if typeof(Key) == "number" then
+                return StatGrid.Tiles[Key]
+            end
+
+            for _, Tile in StatGrid.Tiles do
+                if Tile.Item == Key or Tile.Item.Text == Key then
+                    return Tile
+                end
+            end
+
+            return nil
+        end
+
+        function StatGrid:SetItems(Items)
+            StatGrid.Items = Items or {}
+
+            ClearTiles()
+            for Order, Item in StatGrid.Items do
+                table.insert(StatGrid.Tiles, CreateTile(Item, Order))
+            end
+
+            Resize()
+        end
+
+        function StatGrid:AddItem(Item)
+            table.insert(StatGrid.Items, Item)
+            table.insert(StatGrid.Tiles, CreateTile(Item, #StatGrid.Items))
+
+            Resize()
+        end
+
+        function StatGrid:SetValue(Key, Value, ValueColor)
+            local Tile = FindTile(Key)
+            if not Tile then
+                return
+            end
+
+            Tile.Item.Value = Value
+            if ValueColor ~= nil then
+                Tile.Item.ValueColor = ValueColor
+            end
+
+            RenderTile(Tile)
+        end
+
+        --// Same item table the caller handed over, edited in place and pushed
+        function StatGrid:UpdateItem(Item)
+            local Tile = FindTile(Item)
+            if Tile then
+                RenderTile(Tile)
+            end
+        end
+
+        function StatGrid:Clear()
+            StatGrid.Items = {}
+
+            ClearTiles()
+            Resize()
+        end
+
+        function StatGrid:SetColumns(Columns: number)
+            StatGrid.Columns = math.max(math.floor(Columns), 1)
+            Resize()
+        end
+
+        function StatGrid:SetVisible(Visible: boolean)
+            StatGrid.Visible = Visible
+            Holder.Visible = Visible
+
+            Groupbox:Resize()
+        end
+
+        if typeof(StatGrid.Tooltip) == "string" then
+            StatGrid.TooltipTable = Library:AddTooltip(StatGrid.Tooltip, nil, Holder)
+        end
+
+        StatGrid:SetItems(StatGrid.Items)
+
+        StatGrid.Holder = Holder
+        StatGrid.Container = Container
+
+        table.insert(Groupbox.Elements, StatGrid)
+
+        if Idx then
+            Labels[Idx] = StatGrid
+        else
+            table.insert(Labels, StatGrid)
+        end
+
+        function StatGrid:Destroy()
+            StatGrid.Destroyed = true
+
+            for _, Connection in StatGrid.Connections do
+                Connection:Disconnect()
+            end
+            ClearTiles()
+
+            Holder:Destroy()
+
+            local ElemIdx = table.find(Groupbox.Elements, StatGrid)
+            if ElemIdx then
+                table.remove(Groupbox.Elements, ElemIdx)
+            end
+
+            Groupbox:Resize()
+
+            if Idx then
+                Labels[Idx] = nil
+            else
+                local LblIdx = table.find(Labels, StatGrid)
+                if LblIdx then
+                    table.remove(Labels, LblIdx)
+                end
+            end
+        end
+
+        return StatGrid
+    end
+
 
     function Funcs:AddButton(...)
         if self.Destroyed then return nil end
@@ -14945,6 +15212,7 @@ function Library:Notify(...)
 
         Data.Callback = typeof(Info.Callback) == "function" and Info.Callback or nil
         Data.Closable = Info.Closable == true
+        Data.Buttons = typeof(Info.Buttons) == "table" and Info.Buttons or nil
 
         Data.Icon = Info.Icon
         Data.BigIcon = Info.BigIcon
@@ -15162,10 +15430,82 @@ function Library:Notify(...)
         })
     end
 
+    --// Action buttons: { { Text, Func, Close } }; Close defaults to true
+    local ButtonRow
+    local ButtonLabels = {}
+    if Data.Buttons and #Data.Buttons > 0 then
+        ButtonRow = New("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 22),
+            Parent = ContentHolder,
+        })
+        New("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            Padding = UDim.new(0, 6),
+            Parent = ButtonRow,
+        })
+
+        for _, Info in Data.Buttons do
+            if typeof(Info) ~= "table" then
+                continue
+            end
+
+            local Button = New("TextButton", {
+                BackgroundColor3 = "MainColor",
+                Size = UDim2.fromOffset(0, 22),
+                Text = tostring(Info.Text or "Button"),
+                TextSize = 14,
+                TextTransparency = 0.4,
+                ZIndex = 6,
+                Parent = ButtonRow,
+            })
+            New("UIStroke", {
+                Color = "OutlineColor",
+                Parent = Button,
+            })
+            table.insert(
+                Library.PillCorners,
+                New("UICorner", {
+                    CornerRadius = Library.CornerRadius > 0 and UDim.new(1, 0) or UDim.new(0, 0),
+                    Parent = Button,
+                })
+            )
+            table.insert(ButtonLabels, Button)
+
+            Button.MouseEnter:Connect(function()
+                TweenService:Create(Button, Library.TweenInfo, {
+                    TextTransparency = 0,
+                }):Play()
+            end)
+            Button.MouseLeave:Connect(function()
+                TweenService:Create(Button, Library.TweenInfo, {
+                    TextTransparency = 0.4,
+                }):Play()
+            end)
+            Button.MouseButton1Click:Connect(function()
+                if Data.Destroyed then
+                    return
+                end
+                if typeof(Info.Func) == "function" then
+                    Library:SafeCallback(Info.Func, Data)
+                end
+                if Info.Close ~= false then
+                    Data:Destroy("button")
+                end
+            end)
+        end
+    end
+
     function Data:Resize()
         local ExtraWidth = BigIconLabel and 32 or 0
         local IconWidth = IconLabel and 21 or 0
         local CloseWidth = Data.Closable and 20 or 0
+        local ButtonsX = 0
+        for Index, Button in ButtonLabels do
+            local X = Library:GetTextBounds(Button.Text, Button.FontFace, Button.TextSize)
+            Button.Size = UDim2.fromOffset(X + 20, 22)
+            ButtonsX += X + 20 + (Index > 1 and 6 or 0)
+        end
         local MaxTextWidth = math.max(
             40,
             (NotificationArea.AbsoluteSize.X / Library.DPIScale) - 24 - ExtraWidth - CloseWidth
@@ -15184,7 +15524,7 @@ function Library:Notify(...)
             DescX = X
         end
 
-        FakeBackground.Size = UDim2.fromOffset(math.max(TitleX, DescX) + 24 + ExtraWidth + CloseWidth, 0)
+        FakeBackground.Size = UDim2.fromOffset(math.max(TitleX, DescX, ButtonsX - ExtraWidth) + 24 + ExtraWidth + CloseWidth, 0)
 
         if Library.Notifications[FakeBackground] then
             task.defer(function()
