@@ -892,43 +892,55 @@ function SaveManager:ResetToDefaults()
     end
 end
 
---// Deletes every config plus the start-config and manager files in the current
---// settings folder, then resets all settings. Nothing outside that folder is touched.
+--// Empties a folder file by file, for executors without delfolder
+local function DeleteFolderContents(FolderPath: string): number
+    local Failed = 0
+
+    local SuccessList, Entries = pcall(listfiles, FolderPath)
+    if not SuccessList or typeof(Entries) ~= "table" then
+        return 1
+    end
+
+    for _, EntryPath in Entries do
+        if isfolder(EntryPath) then
+            Failed += DeleteFolderContents(EntryPath)
+        elseif not pcall(delfile, EntryPath) then
+            Failed += 1
+        end
+    end
+
+    return Failed
+end
+
+--// Deletes the whole workspace folder (configs, themes, everything this script saved),
+--// then kicks the player so the script starts clean on rejoin.
 function SaveManager:ResetAll(): (boolean, string?)
     SaveManager.Autosave = false
     SaveManager.AutoloadPerAccount = false
     SaveManager.AutoloadConfig = nil
     SaveManager.LoadedConfig = nil
 
-    local SettingsPath = GetCurrentSettingsPath()
-    local Failed = 0
+    local Folder = SaveManager.Folder
+    local ErrorMessage
 
-    if SettingsPath ~= false then
-        local SuccessList, Files = pcall(listfiles, SettingsPath)
-        if SuccessList and typeof(Files) == "table" then
-            for _, FilePath in Files do
-                local FileName = FilePath:gsub("\\", "/"):match("[^/]+$") or ""
-                local IsOurs = FileName:match("%.json$")
-                    or FileName:match("^autoload.*%.txt$")
-                    or FileName == "manager.txt"
+    if not IsStringEmpty(Folder) and isfolder(Folder) then
+        local Deleted = typeof(delfolder) == "function" and pcall(delfolder, Folder)
+        if not Deleted or isfolder(Folder) then
+            local Failed = DeleteFolderContents(Folder)
+            pcall(delfolder, Folder)
 
-                if IsOurs and not pcall(delfile, FilePath) then
-                    Failed += 1
-                end
+            if Failed > 0 then
+                ErrorMessage = string.format("%d file(s) could not be deleted", Failed)
             end
         end
     end
 
-    SaveManager:ResetToDefaults()
-    if SaveManager.Library.ResetLayout then
-        SaveManager.Library:ResetLayout()
+    local LocalPlayer = Players.LocalPlayer
+    if LocalPlayer then
+        LocalPlayer:Kick("Your settings were reset. Rejoin to start fresh.")
     end
 
-    if Failed > 0 then
-        return false, string.format("%d file(s) could not be deleted", Failed)
-    end
-
-    return true
+    return ErrorMessage == nil, ErrorMessage
 end
 
 --// Manager Settings \\--
@@ -1427,25 +1439,19 @@ function SaveManager:BuildConfigSection(Tab: any, IconName: string)
 
                 "SaveManager_ResetAll",
                 "Reset all settings",
-                "Delete every config and put every setting and UI position back to default? This cannot be undone.",
+                string.format(
+                    "This deletes your whole %q folder: every config, theme and saved setting. You will be kicked from the game and need to rejoin. This cannot be undone.",
+                    tostring(SaveManager.Folder)
+                ),
 
-                "Reset",
+                "Delete and kick",
                 function()
                     local Success, ErrorMessage = SaveManager:ResetAll()
 
-                    local AutoloadMode = SaveManager.Library.Options.SaveManager_AutoloadMode
-                    local AutosaveToggle = SaveManager.Library.Toggles.SaveManager_Autosave
-                    if AutoloadMode then AutoloadMode:SetValue("All accounts") end
-                    if AutosaveToggle then AutosaveToggle:SetValue(false) end
-
-                    RefreshAutoloadConfigLabel()
-
+                    --// Only reached if the kick did not go through
                     if not Success then
                         Notify("Reset, but %s", tostring(ErrorMessage))
-                        return
                     end
-
-                    Notify("Everything is back to default")
                 end
             )
         end
