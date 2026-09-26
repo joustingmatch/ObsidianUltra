@@ -1,3 +1,48 @@
+## 26.09.2026
+
+```diff
+[breaking changes]
+- Dropdown:SetValue selects exactly the requested values that exist, whatever the
+  shape (value, { "A", "B" } or { A = true }). A single select given a value that
+  isn't in the list is now left empty instead of keeping its old selection, and an
+  array given to a multi select no longer keeps values that aren't in the list.
+  It returns (applied, unavailable, problem).
+- SaveManager loads apply synchronously in the caller's thread (callbacks may
+  yield; the load waits) instead of deferring each setting, and return only once
+  everything applied. Toggles always apply after every other setting.
+- SaveManager loads are snapshots by default: settings the config leaves out go
+  back to their defaults. Pass { Mode = "Merge" } or set
+  SaveManager.DefaultLoadMode = "Merge" for the old keep-what-is-there behaviour.
+  Share codes are always snapshots.
+
+[additions]
++ Dropdown:NormalizeValue(Value) -> (selection, unavailable, problem)
++ Library.OnCallbackError(Error), called for any element callback that errors
++ SaveManager load lifecycle: OnLoadBegin(Context), OnLoadFinish(Context, Report),
+  IsLoading(). Covers Load, LoadAutoloadConfig, ImportShareCode, LoadJSON and
+  ResetToDefaults (Context.Source says which).
++ SaveManager:ValidateConfig(Content, Options) checks a config without applying it.
+  Every load validates the whole config first (entry shapes, types, indexes,
+  duplicates, values, compatibility) and changes nothing if it's broken.
++ Loads return (Success, ErrorMessage, Report). Success means every setting and
+  callback finished cleanly; the report lists skipped, unavailable, adjusted,
+  reset, excluded and migrated entries and any errors. No rollback on failure.
++ SaveManager:SetSelectionResolver(fn) / Options.ResolveUnavailable for
+  game-specific fallbacks when a saved dropdown value isn't available.
++ SaveManager:SetShareExclusions({ ... }) and SetShareExcludeFilter(fn): kept out
+  of share codes, still saved privately, never applied or reset by an import.
+  Inputs holding a URL are excluded automatically (ShareExcludeURLs = true).
++ SaveManager:ImportShareCode(Code, Name) applies a share code and saves it only
+  after it fully applied. SaveManager:FormatReport(Report) for notifications.
++ Config format 2: version field, sliders as numbers, dropdowns as arrays, options
+  before toggles. Format 1 files load as before and the report notes it.
+
+[fixes]
++ Autosave no longer snapshots or writes while a load is applying.
++ A load that applied with errors detaches the loaded config, so autosave can't
+  write the mixed state over it.
+```
+
 ## 25.09.2026
 
 ```diff

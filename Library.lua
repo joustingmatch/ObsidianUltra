@@ -889,6 +889,78 @@ local function IsSequentialArray(Table: { [any]: any })
     return true
 end
 
+--// Reads a dropdown selection in any of its shapes -- a single value, an array
+--// { "A", "B" } or a set { A = true, B = false } -- the same way everywhere.
+--// Returns the values that exist in Values (in list order), the requested ones
+--// that do not, and a problem string when the input is not a selection at all
+--// (a nested table, a set whose entries aren't booleans, or several values for a
+--// single select). Unavailable values are reported, never swapped for others.
+local function NormalizeDropdownSelection(Values: { [any]: any }, Multi: boolean?, Input: any): ({ any }, { any }, string?)
+    Values = if typeof(Values) == "table" then Values else {}
+
+    local ValuesIsArray = IsSequentialArray(Values)
+    local function Exists(Value: any): boolean
+        if Value == nil then
+            return false
+        end
+
+        return if ValuesIsArray then table.find(Values, Value) ~= nil else Values[Value] ~= nil
+    end
+
+    local Candidates = {}
+    if typeof(Input) == "table" then
+        if IsSequentialArray(Input) then
+            for _, Value in Input do
+                if typeof(Value) == "table" then
+                    return {}, {}, "the selection holds a nested table"
+                end
+
+                table.insert(Candidates, Value)
+            end
+        else
+            for Value, Selected in Input do
+                if typeof(Selected) ~= "boolean" then
+                    return {}, {}, "a set selection must map each value to true or false"
+                end
+
+                if Selected then
+                    table.insert(Candidates, Value)
+                end
+            end
+        end
+    elseif Input ~= nil and not (Input == "" and not Exists("")) then
+        Candidates = { Input }
+    end
+
+    local Selection, Unavailable, Seen = {}, {}, {}
+    for _, Value in Candidates do
+        if Seen[Value] then continue end
+        Seen[Value] = true
+
+        table.insert(if Exists(Value) then Selection else Unavailable, Value)
+    end
+
+    if not Multi and #Selection + #Unavailable > 1 then
+        return {}, {}, string.format("a single select got %d values", #Selection + #Unavailable)
+    end
+
+    if ValuesIsArray then
+        table.sort(Selection, function(A, B)
+            return table.find(Values, A) < table.find(Values, B)
+        end)
+    else
+        table.sort(Selection, function(A, B)
+            return tostring(A) < tostring(B)
+        end)
+    end
+
+    table.sort(Unavailable, function(A, B)
+        return tostring(A) < tostring(B)
+    end)
+
+    return Selection, Unavailable, nil
+end
+
 local function StopTween(Tween: TweenBase, Destroy: boolean?)
     if not Tween then
         return
@@ -2200,6 +2272,13 @@ function Library:SafeCallback(Func: (...any) -> ...any, ...: any)
 
     local Result = table.pack(xpcall(Func, function(Error)
         task.defer(error, debug.traceback(Error, 2))
+
+        --// Lets an addon (SaveManager's config load) count callback errors it caused
+        local OnCallbackError = Library.OnCallbackError
+        if typeof(OnCallbackError) == "function" then
+            pcall(OnCallbackError, Error)
+        end
+
         if Library.NotifyOnError and Library.Notify then
             Library:Notify(Error)
         end
@@ -11478,29 +11557,30 @@ do
             return Dropdown.Values[Val] ~= nil
         end
 
+        --// See NormalizeDropdownSelection for the accepted shapes
+        function Dropdown:NormalizeValue(Value)
+            return NormalizeDropdownSelection(Dropdown.Values, Info.Multi, Value)
+        end
+
+        --// Selects exactly the requested values that exist. Unavailable ones are left
+        --// out (a single select ends up empty) and returned so the caller can decide
+        --// what to do; input that isn't a selection changes nothing.
+        --// Returns (applied, unavailable, problem).
         function Dropdown:SetValue(Value)
+            local Selection, Unavailable, Problem = Dropdown:NormalizeValue(Value)
+            if Problem then
+                return false, Unavailable, Problem
+            end
+
             if Info.Multi then
-                if typeof(Value) == "string" then
-                    Value = if Value == "" then {} else { [Value] = true }
-                end
-
                 local Table = {}
-
-                for Val, Active in Value or {} do
-                    if typeof(Active) ~= "boolean" then
-                        Table[Active] = true
-                    elseif Active and ValueExists(Val) then
-                        Table[Val] = true
-                    end
+                for _, Val in Selection do
+                    Table[Val] = true
                 end
 
                 Dropdown.Value = Table
             else
-                if ValueExists(Value) then
-                    Dropdown.Value = Value
-                elseif not Value then
-                    Dropdown.Value = nil
-                end
+                Dropdown.Value = Selection[1]
             end
 
             Dropdown:Display()
@@ -11513,6 +11593,7 @@ do
             end
 
             Dropdown:RunChanged()
+            return true, Unavailable
         end
 
         function Dropdown:SetValues(Values)

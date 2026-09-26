@@ -353,6 +353,36 @@ Window:SetSizePosition(Size?, Position?)   -- clamped to viewport + min size, re
 
 SaveManager persists size/position; skip with `SaveManager:SetIgnoreIndexes({ "WindowLayout" })`.
 
+## SaveManager loading
+
+Every load (Load, LoadAutoloadConfig, ImportShareCode, LoadJSON, ResetToDefaults)
+validates the whole config first (nothing changes if it's broken), then fires
+OnLoadBegin, applies everything in the caller's thread (layout, values, toggles
+last; yielding callbacks are waited for), fires OnLoadFinish once, and returns.
+
+```lua
+SaveManager:OnLoadBegin(function(Context) end)           -- Context.Source: "Load" | "Autoload" | "Share" | "JSON" | "Reset"
+SaveManager:OnLoadFinish(function(Context, Report) end)   -- once, after everything applied (or failed)
+SaveManager:IsLoading() -> boolean, Context?
+SaveManager:Load(Name, Options?) -> Success, ErrorMessage, Report
+SaveManager:LoadJSON(JsonOrTable, Options?) -> Success, ErrorMessage, Report
+SaveManager:ImportShareCode(Code, Name, Options?) -> Success, ErrorMessage, Report   -- saves only after a clean apply
+SaveManager:ValidateConfig(JsonOrTable, Options?) -> Valid, ErrorMessage, Report    -- dry run
+-- Options = { Mode = "Snapshot" | "Merge", Strict = bool, ResolveUnavailable = fn }
+SaveManager.DefaultLoadMode = "Snapshot"   -- omitted settings reset to default; "Merge" keeps them
+SaveManager:SetSelectionResolver(function(Info) return nil end)  -- Info.Index/Element/Available/Unavailable
+SaveManager:SetShareExclusions({ "WebhookURL", "WebhookEnabled" })  -- out of share codes, kept in private saves
+SaveManager:SetShareExcludeFilter(function(Index, Element, Data) return false end)
+SaveManager.ShareExcludeURLs = true        -- inputs holding a URL never go into share codes
+SaveManager:FormatReport(Report) -> "2 skipped, 1 unavailable selection(s), ..."
+Dropdown:SetValue(v) -> applied, unavailable, problem   -- unavailable values are left out, never swapped
+Dropdown:NormalizeValue(v) -> selection, unavailable, problem
+```
+
+Success is true only if every setting applied and no callback errored; there is no
+rollback. Suspend gameplay in callbacks while `SaveManager:IsLoading()` and
+reconcile once in OnLoadFinish from `Toggles` / `Options`.
+
 ## Window snapping
 
 ```lua

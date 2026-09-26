@@ -772,7 +772,10 @@ export type Dropdown = {
     RefreshPool: (self: Dropdown) -> (),
     BuildDropdownList: (self: Dropdown) -> (),
     RunChanged: (self: Dropdown) -> (),
-    SetValue: (self: Dropdown, Value: any) -> (),
+    --// Returns (applied, unavailable values, problem). Unavailable values are left out.
+    SetValue: (self: Dropdown, Value: any) -> (boolean, { any }, string?),
+    --// Reads any selection shape: value, { "A", "B" } or { A = true }. -> (selection, unavailable, problem)
+    NormalizeValue: (self: Dropdown, Value: any) -> ({ any }, { any }, string?),
     SetValues: (self: Dropdown, Values: { [any]: any }) -> (),
     AddValues: (self: Dropdown, Values: { [any]: any } | string) -> (),
     SetDisabledValues: (self: Dropdown, DisabledValues: { any }) -> (),
@@ -1440,6 +1443,8 @@ export type Library = {
     ForceCheckbox: boolean,
     ShowToggleFrameInKeybinds: boolean,
     NotifyOnError: boolean,
+    --// Called with the error of any element callback that fails (SaveManager sets it during a load)
+    OnCallbackError: ((Error: any) -> ())?,
     CantDragForced: boolean,
     DraggableElements: { GuiObject },
     PopOutSnapDistance: number,
